@@ -28,7 +28,7 @@ const schema = z.object({
   status: z.enum(['pending', 'valued', 'added_to_stock', 'sold', 'rejected']).default('pending'),
 })
 
-type FormValues = z.infer<typeof schema>
+type FormValues = z.input<typeof schema>
 
 export function TradeInsPage() {
   const queryClient = useQueryClient()
@@ -82,9 +82,10 @@ export function TradeInsPage() {
   })
 
   const onSubmit = (values: FormValues) => {
+    const parsed = schema.parse(values)
     createMutation.mutate({
-      ...values,
-      trade_value_ars: values.trade_value_ars || tradeArs,
+      ...parsed,
+      trade_value_ars: parsed.trade_value_ars || tradeArs,
     })
   }
 

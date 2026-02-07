@@ -35,7 +35,7 @@ const schema = z.object({
   trade_value_ars: z.coerce.number().optional().nullable(),
 })
 
-type FormValues = z.infer<typeof schema>
+type FormValues = z.input<typeof schema>
 
 export function SalesNewPage() {
   const navigate = useNavigate()
@@ -97,31 +97,32 @@ export function SalesNewPage() {
   })
 
   const onSubmit = (values: FormValues) => {
+    const parsed = schema.parse(values)
     const payload = {
-      stock_item_id: values.stock_item_id,
+      stock_item_id: parsed.stock_item_id,
       customer: {
-        name: values.customer_name,
-        phone: values.customer_phone,
+        name: parsed.customer_name,
+        phone: parsed.customer_phone,
       },
       payment: {
-        method: values.method,
-        card_brand: values.card_brand,
-        installments: values.installments,
-        surcharge_pct: values.surcharge_pct ?? surcharge,
-        total_ars: values.total_ars,
-        deposit_ars: values.deposit_ars,
+        method: parsed.method,
+        card_brand: parsed.card_brand,
+        installments: parsed.installments,
+        surcharge_pct: parsed.surcharge_pct ?? surcharge,
+        total_ars: parsed.total_ars,
+        deposit_ars: parsed.deposit_ars,
       },
-      trade_in: values.trade_in_enabled
+      trade_in: parsed.trade_in_enabled
         ? {
-            brand: values.trade_brand,
-            model: values.trade_model,
-            storage: values.trade_storage,
-            color: values.trade_color,
-            condition: values.trade_condition,
-            imei: values.trade_imei,
-            trade_value_usd: values.trade_value_usd,
-            fx_rate_used: values.trade_fx_rate,
-            trade_value_ars: values.trade_value_ars ?? tradeArs,
+            brand: parsed.trade_brand,
+            model: parsed.trade_model,
+            storage: parsed.trade_storage,
+            color: parsed.trade_color,
+            condition: parsed.trade_condition,
+            imei: parsed.trade_imei,
+            trade_value_usd: parsed.trade_value_usd,
+            fx_rate_used: parsed.trade_fx_rate,
+            trade_value_ars: parsed.trade_value_ars ?? tradeArs,
           }
         : null,
     }

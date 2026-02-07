@@ -31,7 +31,7 @@ const schema = z.object({
   status: z.enum(['available', 'reserved', 'sold']).default('available'),
 })
 
-type FormValues = z.infer<typeof schema>
+type FormValues = z.input<typeof schema>
 
 export function StockPage() {
   const navigate = useNavigate()
@@ -58,12 +58,14 @@ export function StockPage() {
     },
   })
 
-  const watched = form.watch(['purchase_usd', 'fx_rate_used', 'purchase_ars', 'sale_price_ars'])
+  const watched = form.watch(['purchase_usd', 'fx_rate_used', 'purchase_ars', 'sale_price_ars']) as Array<
+    number | string | null | undefined
+  >
 
   const purchaseArs = useMemo(() => {
     const [purchaseUsd, fx, purchaseArsValue] = watched
     const computed = Number(purchaseUsd || 0) * Number(fx || 0)
-    return purchaseArsValue || computed
+    return Number(purchaseArsValue ?? computed)
   }, [watched])
 
   const marginPct = useMemo(() => {
@@ -88,9 +90,10 @@ export function StockPage() {
   })
 
   const onSubmit = (values: FormValues) => {
+    const parsed = schema.parse(values)
     mutation.mutate({
-      ...values,
-      purchase_ars: values.purchase_ars || Number(values.purchase_usd) * Number(values.fx_rate_used),
+      ...parsed,
+      purchase_ars: parsed.purchase_ars || Number(parsed.purchase_usd) * Number(parsed.fx_rate_used),
     })
   }
 

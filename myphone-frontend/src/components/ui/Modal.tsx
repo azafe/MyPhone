@@ -26,7 +26,7 @@ export function Modal({
             Cerrar
           </Button>
         </div>
-        <div className={cn('mt-4 space-y-3', actions && 'pb-2')}>{children}</div>
+        <div className={cn('mt-4 space-y-3', actions ? 'pb-2' : undefined)}>{children}</div>
         {actions && <div className="mt-6 flex gap-2">{actions}</div>}
       </div>
     </div>
