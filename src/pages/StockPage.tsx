@@ -172,8 +172,22 @@ export function StockPage() {
         )}
       </Table>
 
-      <Modal open={open} title="Equipo en stock" onClose={() => setOpen(false)}>
-        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+      <Modal
+        open={open}
+        title={form.watch('id') ? 'Editar equipo' : 'Nuevo equipo'}
+        onClose={() => setOpen(false)}
+        actions={
+          <>
+            <Button variant="secondary" type="button" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" form="stock-form" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Guardando...' : 'Guardar equipo'}
+            </Button>
+          </>
+        }
+      >
+        <form id="stock-form" className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit(onSubmit)}>
           <Field label="Categoría">
             <Input {...form.register('category')} placeholder="Ej: iPhone, Android" />
           </Field>
@@ -189,14 +203,13 @@ export function StockPage() {
           <Field label="IMEI">
             <Input {...form.register('imei')} placeholder="Opcional" />
           </Field>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Costo USD">
-              <Input type="number" step="0.01" {...form.register('purchase_usd')} />
-            </Field>
-            <Field label="Tipo de cambio">
-              <Input type="number" step="0.01" {...form.register('fx_rate_used')} />
-            </Field>
-          </div>
+          <div className="hidden md:block" />
+          <Field label="Costo USD">
+            <Input type="number" step="0.01" {...form.register('purchase_usd')} />
+          </Field>
+          <Field label="Tipo de cambio">
+            <Input type="number" step="0.01" {...form.register('fx_rate_used')} />
+          </Field>
           <Field label="Costo ARS">
             <Input type="number" step="0.01" {...form.register('purchase_ars')} placeholder={purchaseArs.toFixed(0)} />
             <div className="text-xs text-ink/40">Auto: USD x TC = {purchaseArs.toFixed(0)}</div>
@@ -207,12 +220,16 @@ export function StockPage() {
           <Field label="Warranty (días)">
             <Input type="number" {...form.register('warranty_days')} />
           </Field>
-          <div className={cn('rounded-xl bg-haze px-3 py-2 text-xs text-ink/60')}>
-            Margen estimado: {marginPct.toFixed(1)}%
+          <div className="md:col-span-2">
+            <div
+              className={cn(
+                'rounded-xl px-3 py-2 text-xs font-medium',
+                marginPct > 20 ? 'bg-moss/15 text-moss' : marginPct >= 10 ? 'bg-sun/20 text-sun' : 'bg-rose/15 text-rose',
+              )}
+            >
+              Margen estimado: {marginPct.toFixed(1)}%
+            </div>
           </div>
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Guardando...' : 'Guardar equipo'}
-          </Button>
         </form>
       </Modal>
     </div>
