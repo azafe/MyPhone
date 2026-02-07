@@ -1,0 +1,10 @@
+{
+  "name": "myphone",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix myphone-frontend run dev",
+    "build": "npm --prefix myphone-frontend run build",
+    "preview": "npm --prefix myphone-frontend run preview",
+    "lint": "npm --prefix myphone-frontend run lint"
+  }
+}
