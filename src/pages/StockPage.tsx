@@ -9,7 +9,7 @@ import type { StockItem } from '../types'
 import { Table } from '../components/ui/Table'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
-import { Drawer } from '../components/ui/Drawer'
+import { Modal } from '../components/ui/Modal'
 import { Field } from '../components/ui/Field'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
@@ -172,7 +172,7 @@ export function StockPage() {
         )}
       </Table>
 
-      <Drawer open={open} title="Equipo en stock" onClose={() => setOpen(false)}>
+      <Modal open={open} title="Equipo en stock" onClose={() => setOpen(false)}>
         <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
           <Field label="Categoría">
             <Input {...form.register('category')} placeholder="Ej: iPhone, Android" />
@@ -214,7 +214,7 @@ export function StockPage() {
             {mutation.isPending ? 'Guardando...' : 'Guardar equipo'}
           </Button>
         </form>
-      </Drawer>
+      </Modal>
     </div>
   )
 }
