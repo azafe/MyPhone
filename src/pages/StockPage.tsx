@@ -175,6 +175,7 @@ export function StockPage() {
       <Modal
         open={open}
         title={form.watch('id') ? 'Editar equipo' : 'Nuevo equipo'}
+        subtitle="Cargá los datos del equipo"
         onClose={() => setOpen(false)}
         actions={
           <>
@@ -187,47 +188,63 @@ export function StockPage() {
           </>
         }
       >
-        <form id="stock-form" className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit(onSubmit)}>
-          <Field label="Categoría">
-            <Input {...form.register('category')} placeholder="Ej: iPhone, Android" />
-          </Field>
-          <Field label="Marca">
-            <Input {...form.register('brand')} placeholder="Apple" />
-          </Field>
-          <Field label="Modelo">
-            <Input {...form.register('model')} placeholder="iPhone 13" />
-          </Field>
-          <Field label="Condición">
-            <Input {...form.register('condition')} placeholder="Nuevo / Usado" />
-          </Field>
-          <Field label="IMEI">
-            <Input {...form.register('imei')} placeholder="Opcional" />
-          </Field>
-          <div className="hidden md:block" />
-          <Field label="Costo USD">
-            <Input type="number" step="0.01" {...form.register('purchase_usd')} />
-          </Field>
-          <Field label="Tipo de cambio">
-            <Input type="number" step="0.01" {...form.register('fx_rate_used')} />
-          </Field>
-          <Field label="Costo ARS">
-            <Input type="number" step="0.01" {...form.register('purchase_ars')} placeholder={purchaseArs.toFixed(0)} />
-            <div className="text-xs text-ink/40">Auto: USD x TC = {purchaseArs.toFixed(0)}</div>
-          </Field>
-          <Field label="Precio venta ARS">
-            <Input type="number" step="0.01" {...form.register('sale_price_ars')} />
-          </Field>
-          <Field label="Warranty (días)">
-            <Input type="number" {...form.register('warranty_days')} />
-          </Field>
-          <div className="md:col-span-2">
-            <div
-              className={cn(
-                'rounded-xl px-3 py-2 text-xs font-medium',
-                marginPct > 20 ? 'bg-moss/15 text-moss' : marginPct >= 10 ? 'bg-sun/20 text-sun' : 'bg-rose/15 text-rose',
-              )}
-            >
-              Margen estimado: {marginPct.toFixed(1)}%
+        <form id="stock-form" className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/50">Datos del equipo</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Field label="Categoría">
+                <Input className="h-11" {...form.register('category')} placeholder="Ej: iPhone, Android" />
+              </Field>
+              <Field label="Marca">
+                <Input className="h-11" {...form.register('brand')} placeholder="Apple" />
+              </Field>
+              <Field label="Modelo">
+                <Input className="h-11" {...form.register('model')} placeholder="iPhone 13" />
+              </Field>
+              <Field label="Condición">
+                <Input className="h-11" {...form.register('condition')} placeholder="Nuevo / Usado" />
+              </Field>
+              <Field label="IMEI">
+                <Input className="h-11" {...form.register('imei')} placeholder="Opcional" />
+              </Field>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/50">Costos</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Field label="Costo USD">
+                <Input className="h-11" type="number" step="0.01" {...form.register('purchase_usd')} />
+              </Field>
+              <Field label="Tipo de cambio">
+                <Input className="h-11" type="number" step="0.01" {...form.register('fx_rate_used')} />
+              </Field>
+              <Field label="Costo ARS">
+                <Input className="h-11" type="number" step="0.01" {...form.register('purchase_ars')} placeholder={purchaseArs.toFixed(0)} />
+                <div className="mt-1.5 text-xs text-ink/50">Auto: USD x TC = {purchaseArs.toFixed(0)}</div>
+              </Field>
+              <Field label="Precio venta ARS">
+                <Input className="h-11" type="number" step="0.01" {...form.register('sale_price_ars')} />
+              </Field>
+              <div className="md:col-span-2">
+                <div
+                  className={cn(
+                    'rounded-xl px-3 py-2 text-xs font-medium',
+                    marginPct > 20 ? 'bg-moss/15 text-moss' : marginPct >= 10 ? 'bg-sun/20 text-sun' : 'bg-rose/15 text-rose',
+                  )}
+                >
+                  Margen estimado: {marginPct.toFixed(1)}%
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/50">Garantía</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Field label="Warranty (días)">
+                <Input className="h-11" type="number" {...form.register('warranty_days')} />
+              </Field>
             </div>
           </div>
         </form>
