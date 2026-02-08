@@ -4,7 +4,7 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { cn } from '../../lib/utils'
 import { useState, type ReactNode } from 'react'
-import logo from '../../assets/myphone.jpeg'
+import logo from '../../assets/logo.png'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
@@ -84,7 +84,7 @@ export function AppLayout() {
             >
               <span className="text-lg leading-none">≡</span>
             </button>
-            <span className="text-sm font-semibold tracking-[-0.02em] text-[#0F172A]">MyPhone</span>
+            <img src={logo} alt="MyPhone" className="h-6 w-auto object-contain" />
           </div>
 
           <div className="hidden md:flex md:flex-1 md:items-center md:gap-3">
