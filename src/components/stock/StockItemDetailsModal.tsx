@@ -52,6 +52,7 @@ export function StockItemDetailsModal({
     reserved: 'Reservado',
     sold: 'Vendido',
   }
+  const batteryValue = item.condition === 'new' ? 100 : item.battery_pct
   const categoryLabel: Record<string, string> = {
     new: 'Nuevo',
     promotion: 'Promoción',
@@ -132,7 +133,7 @@ export function StockItemDetailsModal({
             </div>
             <div className="flex justify-between gap-3">
               <span className="text-[#5B677A]">Batería</span>
-              <span>{item.battery_pct != null ? `${item.battery_pct}%` : '—'}</span>
+              <span>{batteryValue != null ? `${batteryValue}%` : '—'}</span>
             </div>
           </dl>
         </section>

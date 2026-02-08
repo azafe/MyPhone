@@ -271,6 +271,7 @@ export function StockPage() {
           : parsed.iphone_model ?? ''
         : parsed.model ?? ''
     const imeiValue = parsed.imei_later ? null : parsed.imei ?? null
+    const batteryValue = parsed.condition === 'new' ? 100 : parsed.battery_pct
     mutation.mutate({
       id: parsed.id,
       category: parsed.category,
@@ -278,9 +279,14 @@ export function StockPage() {
       model: finalModel,
       condition: parsed.condition,
       imei: imeiValue,
+      storage_gb: parsed.storage_gb,
+      color: parsed.color,
+      color_other: parsed.color_other,
+      battery_pct: batteryValue,
       purchase_usd: parsed.purchase_usd,
       fx_rate_used: parsed.fx_rate_used,
       purchase_ars: Number(purchaseArs || 0),
+      sale_price_usd: parsed.sale_price_usd,
       sale_price_ars: Number(saleArs || 0),
       warranty_days: parsed.warranty_days,
       status: parsed.status,

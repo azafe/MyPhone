@@ -29,6 +29,7 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
     reserved: 'Reservado',
     sold: 'Vendido',
   }
+  const batteryValue = item.condition === 'new' ? 100 : item.battery_pct
   const marginTone =
     marginPct == null
       ? 'text-[#5B677A]'
@@ -60,8 +61,8 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
             )}
           </div>
           <div className="mt-1 text-xs text-[#5B677A]">
-            IMEI: {item.imei ?? 'Sin IMEI'} · {conditionLabel[item.condition] ?? item.condition}
-            {item.battery_pct != null && ` · Batería ${item.battery_pct}%`}
+            {conditionLabel[item.condition] ?? item.condition}
+            {batteryValue != null && ` · Batería ${batteryValue}%`}
           </div>
         </div>
         <div className="text-right">
