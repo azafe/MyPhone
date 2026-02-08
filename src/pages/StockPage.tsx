@@ -408,7 +408,7 @@ export function StockPage() {
       >
         <form id="stock-form" className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Equipo</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Datos del equipo</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Categoría">
                 <Select {...form.register('category')}>
@@ -466,6 +466,21 @@ export function StockPage() {
                   <option value="1024">1024</option>
                 </Select>
               </Field>
+              <Field label="Condición">
+                {category === 'promotion' ? (
+                  <Select {...form.register('condition')}>
+                    <option value="new">Nuevo</option>
+                    <option value="like_new">Como nuevo</option>
+                    <option value="used">Usado</option>
+                    <option value="outlet">Outlet</option>
+                  </Select>
+                ) : (
+                  <Input className="h-11" value={conditionLabels[conditionValue]} readOnly />
+                )}
+              </Field>
+              <Field label="Batería (%)">
+                <Input className="h-11" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={isConditionNew} />
+              </Field>
               <Field label="Color">
                 <Select {...form.register('color')}>
                   <option value="">Seleccionar</option>
@@ -489,9 +504,23 @@ export function StockPage() {
                   <Input className="h-11" {...form.register('color_other')} placeholder="Ej: Azul oscuro" />
                 </Field>
               )}
+              <Field label="Garantía (días)">
+                <Input className="h-11" type="number" {...form.register('warranty_days')} />
+                <div className="mt-2 flex gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 30)}>
+                    30
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 90)}>
+                    90
+                  </Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 180)}>
+                    180
+                  </Button>
+                </div>
+              </Field>
               <div className="md:col-span-2">
-                <Field label="IMEI">
-                  <Input className="h-11" {...form.register('imei')} placeholder="14-16 dígitos" disabled={imeiLater} />
+                <Field label="IMEI (opcional)">
+                  <Input className="h-11" {...form.register('imei')} placeholder="14–16 dígitos" disabled={imeiLater} />
                   {isAppleBrand(brand) && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-[#5B677A]">
                       <input type="checkbox" {...form.register('imei_later')} />
@@ -507,79 +536,42 @@ export function StockPage() {
           </div>
 
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Condición</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Condición">
-                {category === 'promotion' ? (
-                  <Select {...form.register('condition')}>
-                    <option value="new">Nuevo</option>
-                    <option value="like_new">Como nuevo</option>
-                    <option value="used">Usado</option>
-                    <option value="outlet">Outlet</option>
-                  </Select>
-                ) : (
-                  <Input className="h-11" value={conditionLabels[conditionValue]} readOnly />
-                )}
-              </Field>
-              <Field label="Batería (%)">
-                <Input className="h-11" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={isConditionNew} />
-              </Field>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Garantía</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Garantía (días)">
-                <Input className="h-11" type="number" {...form.register('warranty_days')} />
-                <div className="mt-2 flex gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 30)}>
-                    30
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 90)}>
-                    90
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 180)}>
-                    180
-                  </Button>
-                </div>
-              </Field>
-            </div>
-          </div>
-
-          <div>
             <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costos y precio</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Costo USD">
                 <Input className="h-11" type="number" step="0.01" {...form.register('purchase_usd')} />
               </Field>
-              <Field label="Tipo de cambio (ARS)">
+              <Field label="Tipo de cambio (ARS/USD)">
                 <Input className="h-11" type="number" step="0.01" {...form.register('fx_rate_used')} />
               </Field>
               <Field label="Costo ARS">
                 <Input className="h-11" type="number" step="0.01" value={purchaseArs ? purchaseArs.toFixed(0) : ''} readOnly />
-                <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD x TC</div>
+                <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
               </Field>
-              <Field label="Precio venta USD">
+              <Field label="Precio de venta sugerido (USD)">
                 <Input className="h-11" type="number" step="0.01" {...form.register('sale_price_usd')} />
               </Field>
-              <Field label="Precio venta ARS">
+              <Field label="Precio de venta ARS">
                 <Input className="h-11" type="number" step="0.01" value={saleArs ? saleArs.toFixed(0) : ''} readOnly />
-                <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD x TC</div>
+                <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
               </Field>
               <div className="md:col-span-2">
                 <div
                   className={cn(
                     'rounded-xl px-3 py-3 text-xs font-medium',
-                    marginPct < 0
+                    !purchaseArs || !saleArs
+                      ? 'bg-[#F8FAFC] text-[#5B677A]'
+                      : marginPct < 0
                       ? 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]'
                       : marginPct < 10
                       ? 'bg-[rgba(245,158,11,0.14)] text-[#92400E]'
                       : 'bg-[rgba(22,163,74,0.12)] text-[#166534]',
                   )}
                 >
-                  <div>Margen estimado: {marginPct.toFixed(1)}%</div>
-                  <div className="mt-1 text-[11px] text-[#5B677A]">Ganancia estimada: ARS ${gainArs.toLocaleString('es-AR')}</div>
+                  <div>Margen estimado: {purchaseArs && saleArs ? `${marginPct.toFixed(1)}%` : '—'}</div>
+                  <div className="mt-1 text-[11px] text-[#5B677A]">
+                    Ganancia estimada: {purchaseArs && saleArs ? `ARS $${gainArs.toLocaleString('es-AR')}` : '—'}
+                  </div>
                 </div>
               </div>
             </div>
