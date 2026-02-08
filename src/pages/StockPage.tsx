@@ -19,6 +19,8 @@ import { ActionMenu, ActionMenuItem } from '../components/ui/ActionMenu'
 import { IphoneModelSelector } from '../components/ui/IphoneModelSelector'
 import { createStockItemApi } from '../services/stockApi'
 
+const isAppleBrand = (brand?: string | null) => (brand ?? '').trim().toLowerCase() === 'apple'
+
 const schema = z
   .object({
     id: z.string().optional(),
@@ -32,7 +34,7 @@ const schema = z
     color_other: z.string().optional(),
     imei: z.string().optional(),
     imei_later: z.boolean().default(false),
-    condition: z.enum(['Nuevo', 'Usado']),
+    condition: z.enum(['new', 'like_new', 'used', 'outlet']),
     battery_pct: z.coerce.number().min(0).max(100),
     purchase_usd: z.coerce.number().min(0.01),
     fx_rate_used: z.coerce.number().min(0.01),
@@ -43,7 +45,7 @@ const schema = z
     status: z.enum(['available', 'reserved', 'sold']).default('available'),
   })
   .superRefine((values, ctx) => {
-    const isIphone = values.brand === 'Apple'
+    const isIphone = isAppleBrand(values.brand)
     if (isIphone) {
       if (!values.iphone_model) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Seleccioná un modelo de iPhone', path: ['iphone_model'] })
@@ -73,12 +75,19 @@ const schema = z
       }
     }
 
-    if (values.condition === 'Nuevo' && values.battery_pct !== 100) {
+    if (values.condition === 'new' && values.battery_pct !== 100) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Batería debe ser 100%', path: ['battery_pct'] })
     }
   })
 
 type FormValues = z.input<typeof schema>
+
+const conditionLabels: Record<string, string> = {
+  new: 'Nuevo',
+  like_new: 'Como nuevo',
+  used: 'Usado',
+  outlet: 'Outlet',
+}
 
 export function StockPage() {
   const navigate = useNavigate()
@@ -104,7 +113,7 @@ export function StockPage() {
       status: 'available',
       category: 'new',
       brand: '',
-      condition: 'Usado',
+      condition: 'used',
       battery_pct: 85,
       warranty_days: 90,
       imei_later: false,
@@ -145,6 +154,7 @@ export function StockPage() {
     return Number(saleArs || 0) - Number(purchaseArs || 0)
   }, [saleArs, purchaseArs])
 
+  const category = form.watch('category')
   const brand = form.watch('brand')
   const condition = form.watch('condition')
   const imeiLater = form.watch('imei_later')
@@ -153,10 +163,25 @@ export function StockPage() {
   const fxRate = form.watch('fx_rate_used')
 
   useEffect(() => {
-    if (brand === 'Apple' && !form.getValues('iphone_model')) {
+    if (isAppleBrand(brand) && !form.getValues('iphone_model')) {
       form.setValue('iphone_model', '', { shouldValidate: true })
     }
   }, [brand, form])
+
+  useEffect(() => {
+    if (category === 'new') {
+      form.setValue('condition', 'new', { shouldValidate: true })
+      return
+    }
+    if (category === 'used_premium') {
+      form.setValue('condition', 'like_new', { shouldValidate: true })
+      return
+    }
+    if (category === 'outlet') {
+      form.setValue('condition', 'outlet', { shouldValidate: true })
+      return
+    }
+  }, [category, form])
 
   useEffect(() => {
     if (iphoneModel && iphoneModel !== 'other') {
@@ -165,9 +190,9 @@ export function StockPage() {
   }, [iphoneModel, form])
 
   useEffect(() => {
-    if (condition === 'Nuevo') {
+    if (condition === 'new') {
       form.setValue('battery_pct', 100, { shouldValidate: true })
-    } else if (condition === 'Usado' && form.getValues('battery_pct') === 100) {
+    } else if (condition !== 'new' && form.getValues('battery_pct') === 100) {
       form.setValue('battery_pct', 85, { shouldValidate: true })
     }
   }, [condition, form])
@@ -206,7 +231,7 @@ export function StockPage() {
         status: 'available',
         category: 'new',
         brand: '',
-        condition: 'Usado',
+        condition: 'used',
         battery_pct: 85,
         warranty_days: 90,
         imei_later: false,
@@ -223,7 +248,7 @@ export function StockPage() {
   const onSubmit = (values: FormValues) => {
     const parsed = schema.parse(values)
     const finalModel =
-      parsed.brand === 'Apple'
+      isAppleBrand(parsed.brand)
         ? parsed.iphone_model === 'other'
           ? parsed.model_other ?? ''
           : parsed.iphone_model ?? ''
@@ -251,7 +276,7 @@ export function StockPage() {
       category: 'new',
       brand: 'Apple',
       model: 'iPhone 15 Pro',
-      condition: 'Usado',
+      condition: 'used',
       imei: null,
       purchase_usd: 500,
       fx_rate_used: Number(form.getValues('fx_rate_used') || 1000),
@@ -390,7 +415,7 @@ export function StockPage() {
                   </datalist>
                 </>
               </Field>
-              {brand === 'Apple' ? (
+              {isAppleBrand(brand) ? (
                 <Field label="Modelo iPhone">
                   <Controller
                     name="iphone_model"
@@ -409,7 +434,7 @@ export function StockPage() {
                   <Input className="h-11" {...form.register('model')} placeholder="Galaxy S23, Moto G" />
                 </Field>
               )}
-              {brand === 'Apple' && iphoneModel === 'other' && (
+              {isAppleBrand(brand) && iphoneModel === 'other' && (
                 <Field label="Otro iPhone">
                   <Input className="h-11" {...form.register('model_other')} placeholder="iPhone 15 Ultra" />
                 </Field>
@@ -450,13 +475,13 @@ export function StockPage() {
               <div className="md:col-span-2">
                 <Field label="IMEI">
                   <Input className="h-11" {...form.register('imei')} placeholder="14-16 dígitos" disabled={imeiLater} />
-                  {brand === 'Apple' && (
+                  {isAppleBrand(brand) && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-[#5B677A]">
                       <input type="checkbox" {...form.register('imei_later')} />
                       Cargar después (se requiere antes de vender)
                     </div>
                   )}
-                  {brand === 'Apple' && imeiLater && (
+                  {isAppleBrand(brand) && imeiLater && (
                     <div className="mt-2 text-xs text-[#92400E]">Atención: el IMEI es obligatorio para vender.</div>
                   )}
                 </Field>
@@ -468,13 +493,19 @@ export function StockPage() {
             <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Condición</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Condición">
-                <Select {...form.register('condition')}>
-                  <option value="Nuevo">Nuevo</option>
-                  <option value="Usado">Usado</option>
-                </Select>
+                {category === 'promotion' ? (
+                  <Select {...form.register('condition')}>
+                    <option value="new">Nuevo</option>
+                    <option value="like_new">Como nuevo</option>
+                    <option value="used">Usado</option>
+                    <option value="outlet">Outlet</option>
+                  </Select>
+                ) : (
+                  <Input className="h-11" value={conditionLabels[condition] ?? ''} readOnly />
+                )}
               </Field>
               <Field label="Batería (%)">
-                <Input className="h-11" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={condition === 'Nuevo'} />
+                <Input className="h-11" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={condition === 'new'} />
               </Field>
             </div>
           </div>
