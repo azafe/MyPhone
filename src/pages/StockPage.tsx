@@ -158,6 +158,7 @@ export function StockPage() {
   const brand = form.watch('brand')
   const condition = form.watch('condition') as FormValues['condition'] | undefined
   const conditionValue = (condition ?? 'used') as FormValues['condition']
+  const isConditionNew = conditionValue === 'new'
   const imeiLater = form.watch('imei_later')
   const color = form.watch('color')
   const iphoneModel = form.watch('iphone_model')
@@ -191,14 +192,14 @@ export function StockPage() {
   }, [iphoneModel, form])
 
   useEffect(() => {
-    if (conditionValue === 'new') {
+    if (isConditionNew) {
       form.setValue('battery_pct', 100, { shouldValidate: true })
       return
     }
-    if (conditionValue !== 'new' && form.getValues('battery_pct') === 100) {
+    if (!isConditionNew && form.getValues('battery_pct') === 100) {
       form.setValue('battery_pct', 85, { shouldValidate: true })
     }
-  }, [conditionValue, form])
+  }, [isConditionNew, form])
 
   useEffect(() => {
     form.setValue('purchase_ars', Number(purchaseArs || 0), { shouldValidate: true })
@@ -504,11 +505,11 @@ export function StockPage() {
                     <option value="outlet">Outlet</option>
                   </Select>
                 ) : (
-                  <Input className="h-11" value={conditionLabels[condition] ?? ''} readOnly />
+                  <Input className="h-11" value={conditionLabels[conditionValue]} readOnly />
                 )}
               </Field>
               <Field label="Batería (%)">
-                <Input className="h-11" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={conditionValue === 'new'} />
+                <Input className="h-11" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={isConditionNew} />
               </Field>
             </div>
           </div>
