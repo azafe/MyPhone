@@ -43,8 +43,8 @@ export function LoginPage() {
     <div className="min-h-screen bg-[#F6F8FB] px-4">
       <div className="mx-auto flex min-h-screen max-w-md items-center">
         <div className="w-full rounded-2xl border border-[#E6EBF2] bg-white p-8 shadow-[0_20px_40px_rgba(15,23,42,0.10)]">
-          <div className="flex items-center">
-            <img src={logo} alt="MyPhone" className="mb-6 h-8 w-auto object-contain" />
+          <div className="flex items-center justify-center">
+            <img src={logo} alt="MyPhone" className="mb-6 h-10 w-auto object-contain" />
           </div>
           <h1 className="mt-6 text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Ingreso rápido</h1>
           <p className="mt-1 text-sm text-[#5B677A]">Accedé con tu cuenta para gestionar stock y ventas.</p>
