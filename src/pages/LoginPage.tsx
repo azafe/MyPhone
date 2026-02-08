@@ -49,14 +49,8 @@ export function LoginPage() {
       />
       <div className="mx-auto flex min-h-screen max-w-md items-center">
         <div className="w-full rounded-2xl border border-[#E6EBF2] bg-white p-8 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(11,74,162,0.08)] text-sm font-semibold text-[#0B4AA2]">
-              M
-            </div>
-            <div>
-              <p className="text-sm font-semibold tracking-[-0.02em] text-[#0F172A]">MyPhone</p>
-              <p className="text-xs text-[#5B677A]">Business Premium</p>
-            </div>
+          <div className="flex items-center">
+            <img src={logo} alt="MyPhone" className="h-12 w-32 object-contain" />
           </div>
           <h1 className="mt-6 text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Ingreso rápido</h1>
           <p className="mt-1 text-sm text-[#5B677A]">Accedé con tu cuenta para gestionar stock y ventas.</p>
