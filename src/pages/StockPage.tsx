@@ -22,7 +22,7 @@ import { createStockItemApi } from '../services/stockApi'
 const schema = z
   .object({
     id: z.string().optional(),
-    category: z.enum(['iPhone', 'Android']),
+    category: z.enum(['iphone', 'android']),
     brand: z.string().min(1),
     model: z.string().optional(),
     iphone_model: z.string().optional(),
@@ -43,7 +43,7 @@ const schema = z
     status: z.enum(['available', 'reserved', 'sold']).default('available'),
   })
   .superRefine((values, ctx) => {
-    if (values.category === 'iPhone') {
+    if (values.category === 'iphone') {
       if (!values.iphone_model) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Seleccioná un modelo de iPhone', path: ['iphone_model'] })
       }
@@ -101,7 +101,7 @@ export function StockPage() {
     resolver: zodResolver(schema),
     defaultValues: {
       status: 'available',
-      category: 'iPhone',
+      category: 'iphone',
       brand: 'Apple',
       condition: 'Usado',
       battery_pct: 85,
@@ -152,7 +152,7 @@ export function StockPage() {
   const fxRate = form.watch('fx_rate_used')
 
   useEffect(() => {
-    if (category === 'iPhone') {
+    if (category === 'iphone') {
       form.setValue('brand', 'Apple', { shouldValidate: true })
       if (!form.getValues('iphone_model')) {
         form.setValue('iphone_model', '', { shouldValidate: true })
@@ -206,7 +206,7 @@ export function StockPage() {
       setOpen(false)
       form.reset({
         status: 'available',
-        category: 'iPhone',
+        category: 'iphone',
         brand: 'Apple',
         condition: 'Usado',
         battery_pct: 85,
@@ -225,7 +225,7 @@ export function StockPage() {
   const onSubmit = (values: FormValues) => {
     const parsed = schema.parse(values)
     const finalModel =
-      parsed.category === 'iPhone'
+      parsed.category === 'iphone'
         ? parsed.iphone_model === 'other'
           ? parsed.model_other ?? ''
           : parsed.iphone_model ?? ''
@@ -250,7 +250,7 @@ export function StockPage() {
   const handleAddNewEquipmentClick = async () => {
     setOpen(true)
     const payload = {
-      category: 'iPhone',
+        category: 'iphone',
       brand: 'Apple',
       model: 'iPhone 15 Pro',
       condition: 'Usado',
@@ -372,12 +372,12 @@ export function StockPage() {
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Categoría">
                 <Select {...form.register('category')}>
-                  <option value="iPhone">iPhone</option>
-                  <option value="Android">Android</option>
+                  <option value="iphone">iPhone</option>
+                  <option value="android">Android</option>
                 </Select>
               </Field>
               <Field label="Marca">
-                {category === 'iPhone' ? (
+                {category === 'iphone' ? (
                   <>
                     <Input className="h-11" value="Apple" disabled />
                     <input type="hidden" {...form.register('brand')} />
@@ -396,7 +396,7 @@ export function StockPage() {
                   </>
                 )}
               </Field>
-              {category === 'iPhone' ? (
+              {category === 'iphone' ? (
                 <Field label="Modelo iPhone">
                   <Controller
                     name="iphone_model"
@@ -415,7 +415,7 @@ export function StockPage() {
                   <Input className="h-11" {...form.register('model')} placeholder="Galaxy S23, Moto G" />
                 </Field>
               )}
-              {category === 'iPhone' && iphoneModel === 'other' && (
+              {category === 'iphone' && iphoneModel === 'other' && (
                 <Field label="Otro iPhone">
                   <Input className="h-11" {...form.register('model_other')} placeholder="iPhone 15 Ultra" />
                 </Field>
@@ -456,13 +456,13 @@ export function StockPage() {
               <div className="md:col-span-2">
                 <Field label="IMEI">
                   <Input className="h-11" {...form.register('imei')} placeholder="14-16 dígitos" disabled={imeiLater} />
-                  {category === 'iPhone' && (
+                  {category === 'iphone' && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-[#5B677A]">
                       <input type="checkbox" {...form.register('imei_later')} />
                       Cargar después (se requiere antes de vender)
                     </div>
                   )}
-                  {category === 'iPhone' && imeiLater && (
+                  {category === 'iphone' && imeiLater && (
                     <div className="mt-2 text-xs text-[#92400E]">Atención: el IMEI es obligatorio para vender.</div>
                   )}
                 </Field>
