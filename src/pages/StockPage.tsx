@@ -145,7 +145,6 @@ export function StockPage() {
     return Number(saleArs || 0) - Number(purchaseArs || 0)
   }, [saleArs, purchaseArs])
 
-  const category = form.watch('category')
   const brand = form.watch('brand')
   const condition = form.watch('condition')
   const imeiLater = form.watch('imei_later')
