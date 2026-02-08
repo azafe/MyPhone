@@ -65,15 +65,6 @@ export function StockItemDetailsModal({
     : null
   const formattedWarrantyDate = warrantyDate ? warrantyDate.toLocaleDateString('es-AR') : null
   const hasPrice = Boolean(item.sale_price_ars)
-  const marginTone =
-    marginPct == null
-      ? 'text-[#5B677A]'
-      : marginPct > 15
-      ? 'text-[#166534]'
-      : marginPct >= 8
-      ? 'text-[#92400E]'
-      : 'text-[#991B1B]'
-
   return (
     <Modal
       open={open}
