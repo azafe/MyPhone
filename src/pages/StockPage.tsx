@@ -4,10 +4,8 @@ import { z } from 'zod'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import toast from 'react-hot-toast'
-import { fetchStock, setStockStatus, upsertStockItem } from '../services/stock'
+import { deleteStockItem, fetchStock, setStockStatus, upsertStockItem } from '../services/stock'
 import type { StockItem } from '../types'
-import { Table } from '../components/ui/Table'
-import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Field } from '../components/ui/Field'
@@ -15,9 +13,10 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { cn } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
-import { ActionMenu, ActionMenuItem } from '../components/ui/ActionMenu'
-import { IphoneModelSelector } from '../components/ui/IphoneModelSelector'
+import { IphoneModelSelector, IPHONE_MODELS } from '../components/ui/IphoneModelSelector'
 import { createStockItemApi } from '../services/stockApi'
+import { StockListItem } from '../components/stock/StockListItem'
+import { StockItemDetailsModal } from '../components/stock/StockItemDetailsModal'
 
 const isAppleBrand = (brand?: string | null) => (brand ?? '').trim().toLowerCase() === 'apple'
 
@@ -94,6 +93,9 @@ export function StockPage() {
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState({ status: '', category: '', query: '', condition: '' })
   const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState<StockItem | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const fxStorageKey = 'myphone_fx_rate'
 
   const { data = [], isLoading } = useQuery({
@@ -244,6 +246,17 @@ export function StockPage() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteStockItem,
+    onSuccess: () => {
+      toast.success('Equipo eliminado')
+      queryClient.invalidateQueries({ queryKey: ['stock'] })
+      setConfirmDeleteOpen(false)
+      setDetailsOpen(false)
+      setSelected(null)
+    },
+  })
+
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: StockItem['status'] }) => setStockStatus(id, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stock'] }),
@@ -272,6 +285,39 @@ export function StockPage() {
       warranty_days: parsed.warranty_days,
       status: parsed.status,
     })
+  }
+
+  const openDetails = (item: StockItem) => {
+    setSelected(item)
+    setDetailsOpen(true)
+  }
+
+  const openEdit = (item: StockItem) => {
+    const modelMatch = IPHONE_MODELS.includes(item.model)
+    form.reset({
+      id: item.id,
+      category: item.category as FormValues['category'],
+      brand: item.brand,
+      model: modelMatch ? undefined : item.model,
+      iphone_model: modelMatch ? item.model : isAppleBrand(item.brand) ? 'other' : undefined,
+      model_other: modelMatch ? undefined : item.model,
+      storage_gb: (item as StockItem & { storage_gb?: number | null }).storage_gb ?? undefined,
+      color: (item as StockItem & { color?: string | null }).color ?? undefined,
+      color_other: (item as StockItem & { color_other?: string | null }).color_other ?? undefined,
+      imei: item.imei ?? undefined,
+      imei_later: false,
+      condition: item.condition as FormValues['condition'],
+      battery_pct: (item as StockItem & { battery_pct?: number | null }).battery_pct ?? 85,
+      purchase_usd: item.purchase_usd,
+      fx_rate_used: item.fx_rate_used,
+      purchase_ars: item.purchase_ars,
+      sale_price_usd: (item as StockItem & { sale_price_usd?: number | null }).sale_price_usd ?? undefined,
+      sale_price_ars: item.sale_price_ars,
+      warranty_days: item.warranty_days ?? 90,
+      status: item.status,
+    })
+    setOpen(true)
+    setDetailsOpen(false)
   }
 
   const handleAddNewEquipmentClick = async () => {
@@ -328,54 +374,15 @@ export function StockPage() {
         <Input placeholder="Condición" value={filters.condition} onChange={(e) => setFilters({ ...filters, condition: e.target.value })} />
       </div>
 
-      <Table headers={['Equipo', 'Precio', 'Estado', 'Acciones']}>
+      <div className="space-y-3">
         {isLoading ? (
-          <tr>
-            <td className="px-4 py-4 text-sm text-[#5B677A]" colSpan={4}>
-              Cargando...
-            </td>
-          </tr>
+          <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Cargando...</div>
         ) : data.length === 0 ? (
-          <tr>
-            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={4}>
-              Sin equipos en stock.
-            </td>
-          </tr>
+          <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Sin equipos en stock.</div>
         ) : (
-          data.map((item) => (
-            <tr key={item.id}>
-              <td className="px-4 py-3">
-                <div className="text-sm font-medium text-[#0F172A]">
-                  {item.brand} {item.model}
-                </div>
-                <div className="text-xs text-[#5B677A]">{item.imei ?? 'Sin IMEI'}</div>
-              </td>
-              <td className="px-4 py-3 text-sm">
-                <div>${item.sale_price_ars.toLocaleString('es-AR')}</div>
-                <div className="text-xs text-[#5B677A]">Costo ${item.purchase_ars.toLocaleString('es-AR')}</div>
-              </td>
-              <td className="px-4 py-3">
-                <Badge label={item.status} tone={item.status} />
-              </td>
-              <td className="px-4 py-3">
-                <ActionMenu>
-                  <ActionMenuItem
-                    onClick={() =>
-                      statusMutation.mutate({
-                        id: item.id,
-                        status: item.status === 'reserved' ? 'available' : 'reserved',
-                      })
-                    }
-                  >
-                    {item.status === 'reserved' ? 'Liberar' : 'Reservar'}
-                  </ActionMenuItem>
-                  <ActionMenuItem onClick={() => navigate(`/sales/new?stock=${item.id}`)}>Vender</ActionMenuItem>
-                </ActionMenu>
-              </td>
-            </tr>
-          ))
+          data.map((item) => <StockListItem key={item.id} item={item} onClick={() => openDetails(item)} />)
         )}
-      </Table>
+      </div>
 
       <Modal
         open={open}
@@ -575,6 +582,51 @@ export function StockPage() {
           <input type="hidden" {...form.register('purchase_ars')} />
           <input type="hidden" {...form.register('sale_price_ars')} />
         </form>
+      </Modal>
+
+      <StockItemDetailsModal
+        open={detailsOpen}
+        item={selected}
+        onClose={() => setDetailsOpen(false)}
+        onEdit={() => selected && openEdit(selected)}
+        onDelete={() => setConfirmDeleteOpen(true)}
+        onReserve={() =>
+          selected &&
+          statusMutation.mutate({
+            id: selected.id,
+            status: 'reserved',
+          })
+        }
+        onRelease={() =>
+          selected &&
+          statusMutation.mutate({
+            id: selected.id,
+            status: 'available',
+          })
+        }
+        onSell={() => selected && navigate(`/sales/new?stock=${selected.id}`)}
+      />
+
+      <Modal
+        open={confirmDeleteOpen}
+        title="Eliminar equipo"
+        onClose={() => setConfirmDeleteOpen(false)}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => selected && deleteMutation.mutate(selected.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[#5B677A]">¿Eliminar este equipo? Esta acción no se puede deshacer.</p>
       </Modal>
     </div>
   )

@@ -43,3 +43,8 @@ export async function setStockStatus(id: string, status: StockStatus) {
   if (error) throw error
   return data as StockItem
 }
+
+export async function deleteStockItem(id: string) {
+  const { error } = await supabase.from('stock_items').delete().eq('id', id)
+  if (error) throw error
+}

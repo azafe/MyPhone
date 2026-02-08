@@ -13,6 +13,8 @@ const GROUPS: Group[] = [
   { label: '16', options: ['iPhone 16', 'iPhone 16 Plus', 'iPhone 16 Pro', 'iPhone 16 Pro Max'] },
 ]
 
+export const IPHONE_MODELS = GROUPS.flatMap((group) => group.options)
+
 export function IphoneModelSelector({
   value,
   onChange,
