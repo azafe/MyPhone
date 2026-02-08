@@ -164,10 +164,10 @@ export function StockItemDetailsModal({
             <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costo</p>
               <div className="mt-2 text-sm font-semibold text-[#0F172A]">
-                Costo ARS: {item.purchase_ars ? `$${item.purchase_ars.toLocaleString('es-AR')}` : '—'}
+                {item.purchase_usd ? `USD ${item.purchase_usd}` : 'USD —'}
               </div>
               <div className="mt-1 text-xs text-[#5B677A]">
-                {item.purchase_usd ? `USD ${item.purchase_usd}` : 'USD —'}
+                Costo ARS: {item.purchase_ars ? `$${item.purchase_ars.toLocaleString('es-AR')}` : '—'}
               </div>
             </div>
             <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-3">
