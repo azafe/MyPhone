@@ -4,7 +4,6 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { cn } from '../../lib/utils'
 import { useState, type ReactNode } from 'react'
-import logo from '../../assets/myphone.jpg'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
