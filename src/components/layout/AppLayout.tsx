@@ -121,11 +121,11 @@ export function AppLayout() {
           )}
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className={cn('flex w-full items-center gap-3', collapsed ? 'justify-center' : '')}>
               <img
                 src={logo}
                 alt="MyPhone"
-                className={cn('rounded-xl object-cover', collapsed ? 'h-10 w-10' : 'h-12 w-12')}
+                className={cn('rounded-xl object-cover', collapsed ? 'h-11 w-11' : 'h-12 w-12')}
               />
             </div>
             <button
