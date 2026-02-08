@@ -16,11 +16,16 @@ export type StockItem = {
   category: string
   brand: string
   model: string
+  storage_gb?: number | null
+  color?: string | null
+  color_other?: string | null
   condition: string
   imei?: string | null
+  battery_pct?: number | null
   purchase_usd: number
   fx_rate_used: number
   purchase_ars: number
+  sale_price_usd?: number | null
   sale_price_ars: number
   warranty_days: number
   status: StockStatus
