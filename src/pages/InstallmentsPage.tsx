@@ -6,6 +6,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Table } from '../components/ui/Table'
 import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
 import { useAuth } from '../hooks/useAuth'
 
 export function InstallmentsPage() {
@@ -38,12 +39,12 @@ export function InstallmentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-ink">Cuotas</h2>
-        <p className="text-sm text-ink/60">Calculadora y reglas por tarjeta.</p>
+        <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Cuotas</h2>
+        <p className="text-sm text-[#5B677A]">Calculadora y reglas por tarjeta.</p>
       </div>
 
-      <div className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
-        <h3 className="text-lg font-semibold text-ink">Calculadora</h3>
+      <Card className="p-5">
+        <h3 className="text-lg font-semibold text-[#0F172A]">Calculadora</h3>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <Field label="Precio ARS">
             <Input value={price} onChange={(e) => setPrice(e.target.value)} />
@@ -64,11 +65,11 @@ export function InstallmentsPage() {
             ))}
           </Table>
         </div>
-      </div>
+      </Card>
 
       {profile?.role === 'admin' && (
-        <div className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
-          <h3 className="text-lg font-semibold text-ink">Reglas (admin)</h3>
+        <Card className="p-5">
+          <h3 className="text-lg font-semibold text-[#0F172A]">Reglas (admin)</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <Field label="Tarjeta">
               <Input
@@ -117,7 +118,7 @@ export function InstallmentsPage() {
               ))}
             </Table>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   )

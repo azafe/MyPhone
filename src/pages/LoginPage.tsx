@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Field } from '../components/ui/Field'
+import logo from '../assets/myphone.jpg'
 
 const schema = z.object({
   email: z.string().email(),
@@ -39,24 +40,40 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-4">
-      <div className="w-full max-w-md rounded-3xl border border-ink/10 bg-white p-8 shadow-soft">
-        <p className="text-xs uppercase tracking-[0.4em] text-ink/40">MyPhone</p>
-        <h1 className="mt-2 text-2xl font-semibold text-ink">Ingreso rápido</h1>
-        <p className="mt-1 text-sm text-ink/60">Accedé con tu cuenta para gestionar stock y ventas.</p>
+    <div className="relative min-h-screen bg-[#F6F8FB] px-4">
+      <img
+        src={logo}
+        alt=""
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-10 hidden h-64 w-64 -translate-x-1/2 rounded-full object-cover opacity-[0.05] md:block"
+      />
+      <div className="mx-auto flex min-h-screen max-w-md items-center">
+        <div className="w-full rounded-2xl border border-[#E6EBF2] bg-white p-8 shadow-[0_20px_60px_rgba(0,0,0,0.12)]">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(11,74,162,0.08)] text-sm font-semibold text-[#0B4AA2]">
+              M
+            </div>
+            <div>
+              <p className="text-sm font-semibold tracking-[-0.02em] text-[#0F172A]">MyPhone</p>
+              <p className="text-xs text-[#5B677A]">Business Premium</p>
+            </div>
+          </div>
+          <h1 className="mt-6 text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Ingreso rápido</h1>
+          <p className="mt-1 text-sm text-[#5B677A]">Accedé con tu cuenta para gestionar stock y ventas.</p>
 
-        <form className="mt-6 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-          <Field label="Email">
-            <Input type="email" placeholder="mail@myphone.com" {...form.register('email')} />
-          </Field>
-          <Field label="Password">
-            <Input type="password" placeholder="••••••••" {...form.register('password')} />
-          </Field>
+          <form className="mt-6 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <Field label="Email">
+              <Input type="email" placeholder="mail@myphone.com" {...form.register('email')} />
+            </Field>
+            <Field label="Password">
+              <Input type="password" placeholder="••••••••" {...form.register('password')} />
+            </Field>
 
-          <Button className="w-full" disabled={loading}>
-            {loading ? 'Ingresando...' : 'Entrar'}
-          </Button>
-        </form>
+            <Button className="w-full" disabled={loading}>
+              {loading ? 'Ingresando...' : 'Entrar'}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   )

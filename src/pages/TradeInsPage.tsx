@@ -7,11 +7,13 @@ import toast from 'react-hot-toast'
 import { fetchTradeIns, createTradeIn, updateTradeIn, convertTradeInToStock } from '../services/tradeins'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
 import { Field } from '../components/ui/Field'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Modal } from '../components/ui/Modal'
 import { Table } from '../components/ui/Table'
+import { ActionMenu, ActionMenuItem } from '../components/ui/ActionMenu'
 import type { TradeIn, TradeStatus } from '../types'
 
 const schema = z.object({
@@ -93,8 +95,8 @@ export function TradeInsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold text-ink">Permutas</h2>
-          <p className="text-sm text-ink/60">Registro y seguimiento de equipos recibidos.</p>
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Permutas</h2>
+          <p className="text-sm text-[#5B677A]">Registro y seguimiento de equipos recibidos.</p>
         </div>
         <Select value={status} onChange={(e) => setStatus(e.target.value as TradeStatus | '')} className="max-w-[180px]">
           <option value="">Todas</option>
@@ -106,8 +108,8 @@ export function TradeInsPage() {
         </Select>
       </div>
 
-      <div className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
-        <h3 className="text-lg font-semibold text-ink">Nueva permuta</h3>
+      <Card className="p-5">
+        <h3 className="text-lg font-semibold text-[#0F172A]">Nueva permuta</h3>
         <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={form.handleSubmit(onSubmit)}>
           <Field label="Marca">
             <Input {...form.register('brand')} />
@@ -150,12 +152,12 @@ export function TradeInsPage() {
             {createMutation.isPending ? 'Guardando...' : 'Guardar permuta'}
           </Button>
         </form>
-      </div>
+      </Card>
 
       <Table headers={['Equipo', 'Valor', 'Estado', 'Acciones']}>
         {data.length === 0 ? (
           <tr>
-            <td className="px-4 py-6 text-sm text-ink/60" colSpan={4}>
+            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={4}>
               No hay permutas.
             </td>
           </tr>
@@ -163,48 +165,35 @@ export function TradeInsPage() {
           data.map((trade) => (
             <tr key={trade.id}>
               <td className="px-4 py-3">
-                <div className="text-sm font-medium text-ink">
+                <div className="text-sm font-medium text-[#0F172A]">
                   {trade.brand} {trade.model}
                 </div>
-                <div className="text-xs text-ink/50">{trade.imei ?? 'Sin IMEI'}</div>
+                <div className="text-xs text-[#5B677A]">{trade.imei ?? 'Sin IMEI'}</div>
               </td>
               <td className="px-4 py-3 text-sm">${trade.trade_value_ars.toLocaleString('es-AR')}</td>
               <td className="px-4 py-3">
                 <Badge label={trade.status} tone={trade.status} />
               </td>
               <td className="px-4 py-3">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => updateMutation.mutate({ id: trade.id, payload: { status: 'valued' } })}
-                  >
+                <ActionMenu>
+                  <ActionMenuItem onClick={() => updateMutation.mutate({ id: trade.id, payload: { status: 'valued' } })}>
                     Valorar
-                  </Button>
-                  <Button
-                    size="sm"
+                  </ActionMenuItem>
+                  <ActionMenuItem
                     onClick={() => {
                       setSelected(trade)
                       setConvertOpen(true)
                     }}
                   >
                     Convertir a stock
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => updateMutation.mutate({ id: trade.id, payload: { status: 'rejected' } })}
-                  >
+                  </ActionMenuItem>
+                  <ActionMenuItem onClick={() => updateMutation.mutate({ id: trade.id, payload: { status: 'rejected' } })}>
                     Rechazar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => updateMutation.mutate({ id: trade.id, payload: { status: 'sold' } })}
-                  >
+                  </ActionMenuItem>
+                  <ActionMenuItem onClick={() => updateMutation.mutate({ id: trade.id, payload: { status: 'sold' } })}>
                     Marcar vendida
-                  </Button>
-                </div>
+                  </ActionMenuItem>
+                </ActionMenu>
               </td>
             </tr>
           ))

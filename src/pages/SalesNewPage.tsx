@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
+import { Card } from '../components/ui/Card'
 
 const schema = z.object({
   stock_item_id: z.string().min(1),
@@ -133,18 +134,18 @@ export function SalesNewPage() {
   return (
     <div className="space-y-6 pb-24">
       <div>
-        <h2 className="text-2xl font-semibold text-ink">Nueva venta</h2>
-        <p className="text-sm text-ink/60">Cargá los datos en secciones rápidas.</p>
+        <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Nueva venta</h2>
+        <p className="text-sm text-[#5B677A]">Cargá los datos en secciones rápidas.</p>
       </div>
 
-      <section className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
+      <Card className="p-5">
         <button
           type="button"
           className="flex w-full items-center justify-between text-left"
           onClick={() => setOpenSections((prev) => ({ ...prev, stock: !prev.stock }))}
         >
-          <h3 className="text-lg font-semibold text-ink">1. Equipo</h3>
-          <span className="text-xs text-ink/40">{openSections.stock ? 'Ocultar' : 'Mostrar'}</span>
+          <h3 className="text-lg font-semibold text-[#0F172A]">1. Equipo</h3>
+          <span className="text-xs text-[#5B677A]">{openSections.stock ? 'Ocultar' : 'Mostrar'}</span>
         </button>
         {openSections.stock && (
           <div className="mt-4">
@@ -160,16 +161,16 @@ export function SalesNewPage() {
             </Field>
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
+      <Card className="p-5">
         <button
           type="button"
           className="flex w-full items-center justify-between text-left"
           onClick={() => setOpenSections((prev) => ({ ...prev, customer: !prev.customer }))}
         >
-          <h3 className="text-lg font-semibold text-ink">2. Cliente</h3>
-          <span className="text-xs text-ink/40">{openSections.customer ? 'Ocultar' : 'Mostrar'}</span>
+          <h3 className="text-lg font-semibold text-[#0F172A]">2. Cliente</h3>
+          <span className="text-xs text-[#5B677A]">{openSections.customer ? 'Ocultar' : 'Mostrar'}</span>
         </button>
         {openSections.customer && (
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -181,16 +182,16 @@ export function SalesNewPage() {
             </Field>
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
+      <Card className="p-5">
         <button
           type="button"
           className="flex w-full items-center justify-between text-left"
           onClick={() => setOpenSections((prev) => ({ ...prev, payment: !prev.payment }))}
         >
-          <h3 className="text-lg font-semibold text-ink">3. Pago</h3>
-          <span className="text-xs text-ink/40">{openSections.payment ? 'Ocultar' : 'Mostrar'}</span>
+          <h3 className="text-lg font-semibold text-[#0F172A]">3. Pago</h3>
+          <span className="text-xs text-[#5B677A]">{openSections.payment ? 'Ocultar' : 'Mostrar'}</span>
         </button>
         {openSections.payment && (
           <div className="mt-4 space-y-3">
@@ -226,20 +227,20 @@ export function SalesNewPage() {
             </div>
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
+      <Card className="p-5">
         <button
           type="button"
           className="flex w-full items-center justify-between text-left"
           onClick={() => setOpenSections((prev) => ({ ...prev, tradein: !prev.tradein }))}
         >
-          <h3 className="text-lg font-semibold text-ink">4. Permuta (opcional)</h3>
-          <span className="text-xs text-ink/40">{openSections.tradein ? 'Ocultar' : 'Mostrar'}</span>
+          <h3 className="text-lg font-semibold text-[#0F172A]">4. Permuta (opcional)</h3>
+          <span className="text-xs text-[#5B677A]">{openSections.tradein ? 'Ocultar' : 'Mostrar'}</span>
         </button>
         {openSections.tradein && (
           <div className="mt-4 space-y-3">
-            <label className="flex items-center gap-2 text-sm text-ink/70">
+            <label className="flex items-center gap-2 text-sm text-[#5B677A]">
               <input type="checkbox" {...form.register('trade_in_enabled')} />
               Recibe equipo en parte de pago
             </label>
@@ -282,9 +283,9 @@ export function SalesNewPage() {
             )}
           </div>
         )}
-      </section>
+      </Card>
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-ink/10 bg-white/95 px-4 py-3 backdrop-blur md:static md:border-none md:bg-transparent md:px-0">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-[#E6EBF2] bg-white/95 px-4 py-3 backdrop-blur md:static md:border-none md:bg-transparent md:px-0">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
           <Button variant="secondary" onClick={() => navigate('/sales')}>
             Cancelar

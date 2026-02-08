@@ -27,8 +27,8 @@ export function WarrantiesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-ink">Garantías</h2>
-        <p className="text-sm text-ink/60">Seguimiento de vencimientos y clientes.</p>
+        <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Garantías</h2>
+        <p className="text-sm text-[#5B677A]">Seguimiento de vencimientos y clientes.</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -38,7 +38,7 @@ export function WarrantiesPage() {
           <option value="active">Activas</option>
           <option value="expired">Vencidas</option>
         </Select>
-        <label className="flex items-center gap-2 text-sm text-ink/70">
+        <label className="flex items-center gap-2 text-sm text-[#5B677A]">
           <input type="checkbox" checked={nearExp} onChange={(e) => setNearExp(e.target.checked)} />
           Vence en 7 días
         </label>
@@ -47,7 +47,7 @@ export function WarrantiesPage() {
       <Table headers={['Cliente', 'Equipo', 'Vence', 'Estado']}>
         {filtered.length === 0 ? (
           <tr>
-            <td className="px-4 py-6 text-sm text-ink/60" colSpan={4}>
+            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={4}>
               No hay garantías.
             </td>
           </tr>
@@ -55,8 +55,8 @@ export function WarrantiesPage() {
           filtered.map((warranty) => (
             <tr key={warranty.id}>
               <td className="px-4 py-3">
-                <div className="text-sm font-medium text-ink">{warranty.customer_name}</div>
-                <div className="text-xs text-ink/50">{warranty.customer_phone}</div>
+                <div className="text-sm font-medium text-[#0F172A]">{warranty.customer_name}</div>
+                <div className="text-xs text-[#5B677A]">{warranty.customer_phone}</div>
               </td>
               <td className="px-4 py-3 text-sm">{warranty.imei ?? warranty.stock_item_id}</td>
               <td className="px-4 py-3 text-sm">{new Date(warranty.ends_at).toLocaleDateString('es-AR')}</td>

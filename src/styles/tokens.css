@@ -1,0 +1,15 @@
+:root {
+  --bg: #f6f8fb;
+  --card: #ffffff;
+  --border: #e6ebf2;
+  --text-primary: #0f172a;
+  --text-muted: #5b677a;
+  --brand: #0b4aa2;
+  --brand-hover: #083b82;
+  --brand-soft: rgba(11, 74, 162, 0.08);
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --danger: #dc2626;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.25);
+}

@@ -15,6 +15,7 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { cn } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
+import { ActionMenu, ActionMenuItem } from '../components/ui/ActionMenu'
 
 const schema = z.object({
   id: z.string().optional(),
@@ -101,8 +102,8 @@ export function StockPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold text-ink">Stock</h2>
-          <p className="text-sm text-ink/60">Gestión rápida de equipos disponibles.</p>
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Stock</h2>
+          <p className="text-sm text-[#5B677A]">Gestión rápida de equipos disponibles.</p>
         </div>
         <Button onClick={() => setOpen(true)}>Nuevo equipo</Button>
       </div>
@@ -122,13 +123,13 @@ export function StockPage() {
       <Table headers={['Equipo', 'Precio', 'Estado', 'Acciones']}>
         {isLoading ? (
           <tr>
-            <td className="px-4 py-4 text-sm text-ink/60" colSpan={4}>
+            <td className="px-4 py-4 text-sm text-[#5B677A]" colSpan={4}>
               Cargando...
             </td>
           </tr>
         ) : data.length === 0 ? (
           <tr>
-            <td className="px-4 py-6 text-sm text-ink/60" colSpan={4}>
+            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={4}>
               Sin equipos en stock.
             </td>
           </tr>
@@ -136,23 +137,21 @@ export function StockPage() {
           data.map((item) => (
             <tr key={item.id}>
               <td className="px-4 py-3">
-                <div className="text-sm font-medium text-ink">
+                <div className="text-sm font-medium text-[#0F172A]">
                   {item.brand} {item.model}
                 </div>
-                <div className="text-xs text-ink/50">{item.imei ?? 'Sin IMEI'}</div>
+                <div className="text-xs text-[#5B677A]">{item.imei ?? 'Sin IMEI'}</div>
               </td>
               <td className="px-4 py-3 text-sm">
                 <div>${item.sale_price_ars.toLocaleString('es-AR')}</div>
-                <div className="text-xs text-ink/50">Costo ${item.purchase_ars.toLocaleString('es-AR')}</div>
+                <div className="text-xs text-[#5B677A]">Costo ${item.purchase_ars.toLocaleString('es-AR')}</div>
               </td>
               <td className="px-4 py-3">
                 <Badge label={item.status} tone={item.status} />
               </td>
               <td className="px-4 py-3">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
+                <ActionMenu>
+                  <ActionMenuItem
                     onClick={() =>
                       statusMutation.mutate({
                         id: item.id,
@@ -161,11 +160,9 @@ export function StockPage() {
                     }
                   >
                     {item.status === 'reserved' ? 'Liberar' : 'Reservar'}
-                  </Button>
-                  <Button size="sm" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
-                    Vender
-                  </Button>
-                </div>
+                  </ActionMenuItem>
+                  <ActionMenuItem onClick={() => navigate(`/sales/new?stock=${item.id}`)}>Vender</ActionMenuItem>
+                </ActionMenu>
               </td>
             </tr>
           ))
@@ -190,7 +187,7 @@ export function StockPage() {
       >
         <form id="stock-form" className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/50">Datos del equipo</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Datos del equipo</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Categoría">
                 <Input className="h-11" {...form.register('category')} placeholder="Ej: iPhone, Android" />
@@ -211,7 +208,7 @@ export function StockPage() {
           </div>
 
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/50">Costos</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costos</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Costo USD">
                 <Input className="h-11" type="number" step="0.01" {...form.register('purchase_usd')} />
@@ -221,7 +218,7 @@ export function StockPage() {
               </Field>
               <Field label="Costo ARS">
                 <Input className="h-11" type="number" step="0.01" {...form.register('purchase_ars')} placeholder={purchaseArs.toFixed(0)} />
-                <div className="mt-1.5 text-xs text-ink/50">Auto: USD x TC = {purchaseArs.toFixed(0)}</div>
+                <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD x TC = {purchaseArs.toFixed(0)}</div>
               </Field>
               <Field label="Precio venta ARS">
                 <Input className="h-11" type="number" step="0.01" {...form.register('sale_price_ars')} />
@@ -230,7 +227,11 @@ export function StockPage() {
                 <div
                   className={cn(
                     'rounded-xl px-3 py-2 text-xs font-medium',
-                    marginPct > 20 ? 'bg-moss/15 text-moss' : marginPct >= 10 ? 'bg-sun/20 text-sun' : 'bg-rose/15 text-rose',
+                    marginPct > 20
+                      ? 'bg-[rgba(22,163,74,0.12)] text-[#166534]'
+                      : marginPct >= 10
+                      ? 'bg-[rgba(245,158,11,0.14)] text-[#92400E]'
+                      : 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]',
                   )}
                 >
                   Margen estimado: {marginPct.toFixed(1)}%
@@ -240,7 +241,7 @@ export function StockPage() {
           </div>
 
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/50">Garantía</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Garantía</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Warranty (días)">
                 <Input className="h-11" type="number" {...form.register('warranty_days')} />

@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
+import { Card } from '../components/ui/Card'
 
 const schema = z.object({
   email: z.string().email(),
@@ -53,12 +54,12 @@ export function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-ink">Usuarios</h2>
-        <p className="text-sm text-ink/60">Gestión de cuentas y roles.</p>
+        <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Usuarios</h2>
+        <p className="text-sm text-[#5B677A]">Gestión de cuentas y roles.</p>
       </div>
 
-      <div className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
-        <h3 className="text-lg font-semibold text-ink">Nuevo vendedor</h3>
+      <Card className="p-5">
+        <h3 className="text-lg font-semibold text-[#0F172A]">Nuevo vendedor</h3>
         <form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={form.handleSubmit(onSubmit)}>
           <Field label="Email">
             <Input {...form.register('email')} />
@@ -79,16 +80,16 @@ export function AdminUsersPage() {
             {createMutation.isPending ? 'Creando...' : 'Crear usuario'}
           </Button>
         </form>
-      </div>
+      </Card>
 
       <Table headers={['Usuario', 'Rol', 'Acciones']}>
         {data.map((user) => (
           <tr key={user.id}>
             <td className="px-4 py-3">
-              <div className="text-sm font-medium text-ink">{user.full_name ?? user.email}</div>
-              <div className="text-xs text-ink/50">{user.email}</div>
+              <div className="text-sm font-medium text-[#0F172A]">{user.full_name ?? user.email}</div>
+              <div className="text-xs text-[#5B677A]">{user.email}</div>
             </td>
-            <td className="px-4 py-3 text-sm uppercase tracking-[0.2em] text-ink/60">{user.role}</td>
+            <td className="px-4 py-3 text-sm uppercase tracking-[0.2em] text-[#5B677A]">{user.role}</td>
             <td className="px-4 py-3">
               <div className="flex gap-2">
                 <Button

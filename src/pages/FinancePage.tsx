@@ -4,6 +4,7 @@ import { fetchFinanceSummary } from '../services/finance'
 import { StatCard } from '../components/ui/StatCard'
 import { Input } from '../components/ui/Input'
 import { Table } from '../components/ui/Table'
+import { Card } from '../components/ui/Card'
 
 function toISO(date: Date) {
   return date.toISOString().slice(0, 10)
@@ -25,17 +26,17 @@ export function FinancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold text-ink">Finanzas</h2>
-        <p className="text-sm text-ink/60">Resumen por fechas.</p>
+        <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Finanzas</h2>
+        <p className="text-sm text-[#5B677A]">Resumen por fechas.</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
         <div>
-          <label className="text-xs uppercase tracking-[0.2em] text-ink/50">Desde</label>
+          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Desde</label>
           <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </div>
         <div>
-          <label className="text-xs uppercase tracking-[0.2em] text-ink/50">Hasta</label>
+          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Hasta</label>
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
       </div>
@@ -46,13 +47,13 @@ export function FinancePage() {
         <StatCard label="Permutas abiertas" value={`${data?.open_tradeins ?? 0}`} />
       </div>
 
-      <div className="rounded-2xl border border-ink/10 bg-white p-5 shadow-soft">
-        <h3 className="text-lg font-semibold text-ink">Mix de pagos</h3>
+      <Card className="p-5">
+        <h3 className="text-lg font-semibold text-[#0F172A]">Mix de pagos</h3>
         <div className="mt-4">
           <Table headers={['Método', 'Total']}>
             {mixRows.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-ink/60" colSpan={2}>
+                <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={2}>
                   Sin datos para el período.
                 </td>
               </tr>
@@ -66,7 +67,7 @@ export function FinancePage() {
             )}
           </Table>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }
