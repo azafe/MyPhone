@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { cn } from '../../lib/utils'
 import { useState, type ReactNode } from 'react'
+import logo from '../../assets/myphone.jpg'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
@@ -121,13 +122,17 @@ export function AppLayout() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <img
+                src={logo}
+                alt="MyPhone"
+                className={cn('rounded-xl object-cover', collapsed ? 'h-10 w-10' : 'h-12 w-12')}
+              />
               {!collapsed && (
                 <div>
-                  <p className="text-sm font-semibold tracking-[-0.02em] text-[#0F172A]">MYPhone</p>
+                  <p className="text-sm font-semibold tracking-[-0.02em] text-[#0F172A]">MyPhone</p>
                   <p className="text-xs text-[#5B677A]">Business Suite</p>
                 </div>
               )}
-              {collapsed && <p className="text-sm font-semibold text-[#0F172A]">MY</p>}
             </div>
             <button
               type="button"
