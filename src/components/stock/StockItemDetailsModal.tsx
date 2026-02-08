@@ -173,15 +173,12 @@ export function StockItemDetailsModal({
             <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Precio de venta</p>
               <div className="mt-2 text-sm font-semibold text-[#0F172A]">
+                {showReferentialUsd ? `USD ${referentialUsd}` : 'USD —'}
+              </div>
+              <div className="mt-1 text-xs text-[#5B677A]">
                 Precio venta ARS: {item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '—'}
               </div>
-              {item.sale_price_ars ? (
-                <div className="mt-1 text-xs text-[#5B677A]">
-                  {showReferentialUsd ? `USD ${referentialUsd} (referencial)` : 'USD —'}
-                </div>
-              ) : (
-                <div className="mt-1 text-xs text-[#92400E]">Sin precio</div>
-              )}
+              {!item.sale_price_ars && <div className="mt-1 text-xs text-[#92400E]">Sin precio</div>}
             </div>
           </div>
 
