@@ -29,12 +29,20 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
     reserved: 'Reservado',
     sold: 'Vendido',
   }
+  const marginTone =
+    marginPct == null
+      ? 'text-[#5B677A]'
+      : marginPct > 15
+      ? 'text-[#166534]'
+      : marginPct >= 8
+      ? 'text-[#92400E]'
+      : 'text-[#991B1B]'
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full flex-col gap-2 rounded-2xl border border-[#E6EBF2] bg-white p-4 text-left transition duration-200 hover:bg-[#F8FAFC]"
+      className="flex w-full cursor-pointer flex-col gap-2 rounded-2xl border border-[#E6EBF2] bg-white p-4 text-left transition duration-200 hover:bg-[#F8FAFC] active:bg-[#EEF2F7]"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -57,7 +65,7 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
           </div>
         </div>
         <div className="text-right">
-          <div className={cn('text-sm font-semibold', hasPrice ? 'text-[#0F172A]' : 'text-[#92400E]')}>
+          <div className={cn('text-sm font-semibold', hasPrice ? 'text-[#0F172A]' : 'text-[#F59E0B]')}>
             {hasPrice ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : 'Sin precio'}
           </div>
           <div className="mt-1">
@@ -69,7 +77,7 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
       <div className="text-xs text-[#5B677A]">
         {item.purchase_ars ? `Costo ARS $${item.purchase_ars.toLocaleString('es-AR')}` : 'Costo ARS —'}
         {marginPct != null && (
-          <span className="ml-2">· Margen {marginPct.toFixed(1)}%</span>
+          <span className={cn('ml-2', marginTone)}>· Margen {marginPct.toFixed(1)}%</span>
         )}
       </div>
     </button>

@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react'
 import type { StockItem } from '../../types'
 import { Modal } from '../ui/Modal'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
+import { cn } from '../../lib/utils'
 
 type StockItemExtended = StockItem & {
   storage_gb?: number | null
@@ -21,7 +21,6 @@ type StockItemDetailsModalProps = {
   onReserve: () => void
   onRelease: () => void
   onSell: () => void
-  footer?: ReactNode
 }
 
 export function StockItemDetailsModal({
@@ -60,33 +59,38 @@ export function StockItemDetailsModal({
     used_premium: 'Usado Premium',
   }
 
+  const warrantyDate = item.created_at
+    ? new Date(new Date(item.created_at).getTime() + (item.warranty_days ?? 0) * 24 * 60 * 60 * 1000)
+    : null
+  const formattedWarrantyDate = warrantyDate ? warrantyDate.toLocaleDateString('es-AR') : null
+  const hasPrice = Boolean(item.sale_price_ars)
+  const marginTone =
+    marginPct == null
+      ? 'text-[#5B677A]'
+      : marginPct > 15
+      ? 'text-[#166534]'
+      : marginPct >= 8
+      ? 'text-[#92400E]'
+      : 'text-[#991B1B]'
+
   return (
     <Modal
       open={open}
       title={`${item.brand} ${item.model}`}
-      subtitle={[item.storage_gb ? `${item.storage_gb} GB` : null, item.color, item.condition].filter(Boolean).join(' · ')}
+      subtitle={[item.storage_gb ? `${item.storage_gb} GB` : null, item.color, conditionLabel[item.condition]].filter(Boolean).join(' · ')}
       onClose={onClose}
-      actions={
-        <>
-          <Button variant="secondary" onClick={onEdit}>
-            Editar
-          </Button>
-          <Button variant="danger" onClick={onDelete}>
-            Eliminar
-          </Button>
-        </>
-      }
     >
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge label={conditionLabel[item.condition] ?? item.condition} tone="active" />
         <Badge label={statusLabel[item.status] ?? item.status} tone={item.status} />
-        {item.sale_price_ars ? (
-          <span className="text-sm font-semibold text-[#0F172A]">
-            ${item.sale_price_ars.toLocaleString('es-AR')}
-          </span>
-        ) : (
-          <span className="text-sm text-[#92400E]">Sin precio</span>
-        )}
+        {!hasPrice && <Badge label="⚠️ Sin precio" tone="reserved" />}
       </div>
+
+      {!hasPrice && (
+        <div className="mt-3 rounded-xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.12)] px-3 py-2 text-xs text-[#92400E]">
+          Precio de venta no definido
+        </div>
+      )}
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
@@ -140,6 +144,12 @@ export function StockItemDetailsModal({
               <span className="text-[#5B677A]">Días</span>
               <span>{item.warranty_days ?? '—'}</span>
             </div>
+            {formattedWarrantyDate && (
+              <div className="flex justify-between gap-3">
+                <span className="text-[#5B677A]">Vence</span>
+                <span>{formattedWarrantyDate}</span>
+              </div>
+            )}
           </dl>
         </section>
 
@@ -158,40 +168,52 @@ export function StockItemDetailsModal({
               <span className="text-[#5B677A]">Costo ARS</span>
               <span>{item.purchase_ars ? `$${item.purchase_ars.toLocaleString('es-AR')}` : '—'}</span>
             </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-[#5B677A]">Precio USD</span>
-              <span>{item.sale_price_usd ? `$${item.sale_price_usd}` : '—'}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-[#5B677A]">Precio ARS</span>
-              <span>{item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '—'}</span>
-            </div>
-            {marginPct != null && gainArs != null && (
-              <div className="mt-2 rounded-lg bg-[#F8FAFC] px-3 py-2 text-xs text-[#5B677A]">
-                Margen {marginPct.toFixed(1)}% · Ganancia ARS ${gainArs.toLocaleString('es-AR')}
+            <div className="mt-2 rounded-lg bg-[#F8FAFC] px-3 py-2">
+              <div className="flex justify-between text-sm font-semibold text-[#0F172A]">
+                <span>Precio venta ARS</span>
+                <span>{item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '—'}</span>
               </div>
-            )}
+              <div className="mt-1 flex justify-between text-xs text-[#5B677A]">
+                <span>Precio USD</span>
+                <span>{item.sale_price_usd ? `$${item.sale_price_usd}` : '—'}</span>
+              </div>
+              {marginPct != null && gainArs != null && (
+                <div className={cn('mt-2 text-xs', marginTone)}>
+                  Margen {marginPct.toFixed(1)}% · Ganancia ARS ${gainArs.toLocaleString('es-AR')}
+                </div>
+              )}
+            </div>
           </dl>
         </section>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        {item.status === 'available' && (
-          <>
-            <Button variant="secondary" onClick={onReserve}>
-              Reservar
-            </Button>
-            <Button onClick={onSell}>Vender</Button>
-          </>
-        )}
-        {item.status === 'reserved' && (
-          <>
-            <Button variant="secondary" onClick={onRelease}>
-              Liberar
-            </Button>
-            <Button onClick={onSell}>Vender</Button>
-          </>
-        )}
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {item.status === 'available' && (
+            <>
+              <Button variant="secondary" onClick={onReserve}>
+                Reservar
+              </Button>
+              <Button onClick={onSell}>Vender</Button>
+            </>
+          )}
+          {item.status === 'reserved' && (
+            <>
+              <Button variant="secondary" onClick={onRelease}>
+                Liberar
+              </Button>
+              <Button onClick={onSell}>Vender</Button>
+            </>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={onEdit}>
+            Editar
+          </Button>
+          <Button variant="danger" onClick={onDelete}>
+            Eliminar
+          </Button>
+        </div>
       </div>
     </Modal>
   )
