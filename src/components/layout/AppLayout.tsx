@@ -4,6 +4,7 @@ import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { cn } from '../../lib/utils'
 import { useState, type ReactNode } from 'react'
+import logo from '../../assets/myphone.jpg'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
@@ -122,13 +123,19 @@ export function AppLayout() {
           <div className="flex h-[80px] items-center justify-between border-b border-[#E6EBF2] px-5">
             {collapsed ? (
               <div className="flex h-full w-full items-center justify-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(11,74,162,0.08)] text-sm font-semibold text-[#0B4AA2]">
-                  M
-                </div>
+                <img
+                  src={logo}
+                  alt="MyPhone"
+                  className="h-10 w-10 rounded-xl object-cover"
+                />
               </div>
             ) : (
               <div className="flex flex-col">
-                <span className="text-2xl font-semibold tracking-tight text-[#0B4AA2]">MYPhone</span>
+                <img
+                  src={logo}
+                  alt="MyPhone"
+                  className="h-10 w-28 object-contain"
+                />
                 <span className="mt-1 text-xs text-[#5B677A]">Sistema de gestión</span>
               </div>
             )}
