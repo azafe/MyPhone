@@ -545,14 +545,28 @@ export function StockPage() {
                 <Input className="h-11" type="number" step="0.01" {...form.register('fx_rate_used')} />
               </Field>
               <Field label="Costo ARS">
-                <Input className="h-11" type="number" step="0.01" value={purchaseArs ? purchaseArs.toFixed(0) : ''} readOnly />
+                <Input
+                  className="h-11"
+                  type="number"
+                  step="0.01"
+                  value={purchaseArs ? purchaseArs.toFixed(0) : ''}
+                  readOnly
+                  disabled
+                />
                 <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
               </Field>
               <Field label="Precio de venta sugerido (USD)">
                 <Input className="h-11" type="number" step="0.01" {...form.register('sale_price_usd')} />
               </Field>
               <Field label="Precio de venta ARS">
-                <Input className="h-11" type="number" step="0.01" value={saleArs ? saleArs.toFixed(0) : ''} readOnly />
+                <Input
+                  className="h-11"
+                  type="number"
+                  step="0.01"
+                  value={saleArs ? saleArs.toFixed(0) : ''}
+                  readOnly
+                  disabled
+                />
                 <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
               </Field>
               <div className="md:col-span-2">
