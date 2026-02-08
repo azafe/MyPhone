@@ -127,12 +127,6 @@ export function AppLayout() {
                 alt="MyPhone"
                 className={cn('rounded-xl object-cover', collapsed ? 'h-10 w-10' : 'h-12 w-12')}
               />
-              {!collapsed && (
-                <div>
-                  <p className="text-sm font-semibold tracking-[-0.02em] text-[#0F172A]">MyPhone</p>
-                  <p className="text-xs text-[#5B677A]">Business Suite</p>
-                </div>
-              )}
             </div>
             <button
               type="button"
