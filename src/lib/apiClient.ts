@@ -24,6 +24,16 @@ export async function apiClient<T>(path: string, options: ApiOptions = {}): Prom
   })
 
   if (!response.ok) {
+    const contentType = response.headers.get('content-type') ?? ''
+    if (contentType.includes('application/json')) {
+      const body = (await response.json()) as { error?: { code?: string; message?: string; details?: unknown } }
+      if (body?.error) {
+        const err = new Error(body.error.message || `API error: ${response.status}`)
+        ;(err as Error & { code?: string; details?: unknown }).code = body.error.code
+        ;(err as Error & { code?: string; details?: unknown }).details = body.error.details
+        throw err
+      }
+    }
     const message = await response.text()
     throw new Error(message || `API error: ${response.status}`)
   }

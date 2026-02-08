@@ -17,6 +17,7 @@ import { cn } from '../lib/utils'
 import { useNavigate } from 'react-router-dom'
 import { ActionMenu, ActionMenuItem } from '../components/ui/ActionMenu'
 import { IphoneModelSelector } from '../components/ui/IphoneModelSelector'
+import { createStockItemApi } from '../services/stockApi'
 
 const schema = z
   .object({
@@ -246,6 +247,38 @@ export function StockPage() {
     })
   }
 
+  const handleAddNewEquipmentClick = async () => {
+    setOpen(true)
+    const payload = {
+      category: 'iPhone',
+      brand: 'Apple',
+      model: 'iPhone 15 Pro',
+      condition: 'Usado',
+      imei: null,
+      purchase_usd: 500,
+      fx_rate_used: Number(form.getValues('fx_rate_used') || 1000),
+      purchase_ars: 500 * Number(form.getValues('fx_rate_used') || 1000),
+      sale_price_usd: 650,
+      sale_price_ars: 650 * Number(form.getValues('fx_rate_used') || 1000),
+      warranty_days: 90,
+      battery_pct: 85,
+      storage_gb: 256,
+      color: 'Negro',
+    }
+    try {
+      if (import.meta.env.DEV) {
+        await createStockItemApi(payload)
+        toast.success('Ejemplo enviado al backend')
+      } else {
+        console.info('Ejemplo payload /api/stock-items', payload)
+        toast.success('Ejemplo de payload en consola')
+      }
+    } catch (error) {
+      const err = error as Error & { code?: string; details?: unknown }
+      toast.error(err.message || 'Error en backend')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -253,7 +286,7 @@ export function StockPage() {
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Stock</h2>
           <p className="text-sm text-[#5B677A]">Gestión rápida de equipos disponibles.</p>
         </div>
-        <Button onClick={() => setOpen(true)}>Nuevo equipo</Button>
+        <Button onClick={handleAddNewEquipmentClick}>Agregar nuevo equipo</Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
