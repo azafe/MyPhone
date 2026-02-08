@@ -116,18 +116,23 @@ export function AppLayout() {
       <div className="mx-auto flex max-w-[1200px] gap-6 px-4 py-6">
         <aside
           className={cn(
-            'hidden flex-shrink-0 flex-col gap-6 rounded-2xl border border-[#E6EBF2] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.06)] md:flex',
+            'hidden flex-shrink-0 flex-col rounded-2xl border border-[#E6EBF2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)] md:flex',
             collapsed ? 'w-20' : 'w-[280px]'
           )}
         >
-          <div className="flex items-center justify-between">
-            <div className={cn('flex w-full items-center gap-3', collapsed ? 'justify-center' : '')}>
-              <img
-                src={logo}
-                alt="MyPhone"
-                className={cn('rounded-xl object-cover', collapsed ? 'h-11 w-11' : 'h-12 w-12')}
-              />
-            </div>
+          <div className="flex h-[80px] items-center justify-between border-b border-[#E6EBF2] px-5">
+            {collapsed ? (
+              <div className="flex h-full w-full items-center justify-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(11,74,162,0.08)] text-sm font-semibold text-[#0B4AA2]">
+                  M
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                <span className="text-2xl font-semibold tracking-tight text-[#0B4AA2]">MYPhone</span>
+                <span className="mt-1 text-xs text-[#5B677A]">Sistema de gestión</span>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setCollapsed((prev) => !prev)}
@@ -137,7 +142,7 @@ export function AppLayout() {
             </button>
           </div>
 
-          <nav className="space-y-1">
+          <nav className="mt-4 space-y-1 px-4 pb-4">
             {!collapsed && <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Secciones</p>}
             {navItems.map((item) => (
               <NavLink
