@@ -156,35 +156,51 @@ export function StockItemDetailsModal({
 
         <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costos y precio</h4>
-          <dl className="mt-3 space-y-2 text-sm text-[#0F172A]">
-            <div className="flex justify-between gap-3">
-              <span className="text-[#5B677A]">Costo USD</span>
-              <span>{item.purchase_usd ? `$${item.purchase_usd}` : '—'}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-[#5B677A]">Tipo de cambio</span>
-              <span>{item.fx_rate_used ?? '—'}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-[#5B677A]">Costo ARS</span>
-              <span>{item.purchase_ars ? `$${item.purchase_ars.toLocaleString('es-AR')}` : '—'}</span>
-            </div>
-            <div className="mt-2 rounded-lg bg-[#F8FAFC] px-3 py-2">
-              <div className="flex justify-between text-sm font-semibold text-[#0F172A]">
-                <span>Precio venta ARS</span>
-                <span>{item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '—'}</span>
+          <p className="mt-2 text-xs text-[#5B677A]">
+            TC usado: {item.fx_rate_used ? `${item.fx_rate_used} ARS/USD` : '—'}
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costo</p>
+              <div className="mt-2 text-sm font-semibold text-[#0F172A]">
+                {item.purchase_ars ? `$${item.purchase_ars.toLocaleString('es-AR')}` : '—'}
               </div>
-              <div className="mt-1 flex justify-between text-xs text-[#5B677A]">
-                <span>Precio USD</span>
-                <span>{item.sale_price_usd ? `$${item.sale_price_usd}` : '—'}</span>
+              <div className="mt-1 text-xs text-[#5B677A]">
+                {item.purchase_usd ? `USD ${item.purchase_usd}` : 'USD —'}
               </div>
-              {marginPct != null && gainArs != null && (
-                <div className={cn('mt-2 text-xs', marginTone)}>
-                  Margen {marginPct.toFixed(1)}% · Ganancia ARS ${gainArs.toLocaleString('es-AR')}
-                </div>
-              )}
             </div>
-          </dl>
+            <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Venta</p>
+              <div className="mt-2 text-sm font-semibold text-[#0F172A]">
+                {item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '—'}
+              </div>
+              <div className="mt-1 text-xs text-[#5B677A]">
+                {item.sale_price_usd ? `USD ${item.sale_price_usd}` : 'USD —'}
+              </div>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              'mt-3 rounded-lg px-3 py-2 text-xs',
+              marginPct == null || gainArs == null
+                ? 'bg-[#F8FAFC] text-[#5B677A]'
+                : marginPct > 15
+                ? 'bg-[rgba(22,163,74,0.12)] text-[#166534]'
+                : marginPct >= 8
+                ? 'bg-[rgba(245,158,11,0.14)] text-[#92400E]'
+                : 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]',
+            )}
+          >
+            <div className="flex flex-wrap gap-2">
+              <span>Margen: {marginPct != null ? `${marginPct.toFixed(1)}%` : '—'}</span>
+              <span>· Ganancia: {gainArs != null ? `ARS $${gainArs.toLocaleString('es-AR')}` : '—'}</span>
+            </div>
+            {marginPct == null || gainArs == null ? (
+              <div className="mt-1 text-[11px]">Faltan datos para calcular margen</div>
+            ) : null}
+          </div>
         </section>
       </div>
 
