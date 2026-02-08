@@ -41,6 +41,12 @@ export function StockItemDetailsModal({
       : null
   const gainArs =
     item.purchase_ars && item.sale_price_ars ? item.sale_price_ars - item.purchase_ars : null
+  const refFx = item.fx_rate_used ? Number(item.fx_rate_used) : null
+  const referentialUsd =
+    item.sale_price_ars && refFx ? Math.round(Number(item.sale_price_ars) / refFx) : null
+  const showReferentialUsd =
+    referentialUsd != null &&
+    (!item.sale_price_usd || Math.abs(Number(item.sale_price_usd) - referentialUsd) < 1)
   const conditionLabel: Record<string, string> = {
     new: 'Nuevo',
     like_new: 'Como nuevo',
@@ -148,27 +154,34 @@ export function StockItemDetailsModal({
         <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costos y precio</h4>
           <p className="mt-2 text-xs text-[#5B677A]">
-            TC usado: {item.fx_rate_used ? `${item.fx_rate_used} ARS/USD` : '—'}
+            Tipo de cambio de referencia: {refFx ? `${refFx} ARS/USD` : '—'}
+          </p>
+          <p className="mt-1 text-[11px] text-[#5B677A]">
+            Se usa para cálculos estimados de stock (no es venta final).
           </p>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-3">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costo</p>
               <div className="mt-2 text-sm font-semibold text-[#0F172A]">
-                {item.purchase_ars ? `$${item.purchase_ars.toLocaleString('es-AR')}` : '—'}
+                Costo ARS: {item.purchase_ars ? `$${item.purchase_ars.toLocaleString('es-AR')}` : '—'}
               </div>
               <div className="mt-1 text-xs text-[#5B677A]">
                 {item.purchase_usd ? `USD ${item.purchase_usd}` : 'USD —'}
               </div>
             </div>
             <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Venta</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Precio de venta</p>
               <div className="mt-2 text-sm font-semibold text-[#0F172A]">
-                {item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '—'}
+                Precio venta ARS: {item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '—'}
               </div>
-              <div className="mt-1 text-xs text-[#5B677A]">
-                {item.sale_price_usd ? `USD ${item.sale_price_usd}` : 'USD —'}
-              </div>
+              {item.sale_price_ars ? (
+                <div className="mt-1 text-xs text-[#5B677A]">
+                  {showReferentialUsd ? `USD ${referentialUsd} (referencial)` : 'USD —'}
+                </div>
+              ) : (
+                <div className="mt-1 text-xs text-[#92400E]">Sin precio</div>
+              )}
             </div>
           </div>
 
@@ -176,7 +189,7 @@ export function StockItemDetailsModal({
             className={cn(
               'mt-3 rounded-lg px-3 py-2 text-xs',
               marginPct == null || gainArs == null
-                ? 'bg-[#F8FAFC] text-[#5B677A]'
+                ? 'bg-[#F1F5F9] text-[#5B677A]'
                 : marginPct > 15
                 ? 'bg-[rgba(22,163,74,0.12)] text-[#166534]'
                 : marginPct >= 8
@@ -185,8 +198,8 @@ export function StockItemDetailsModal({
             )}
           >
             <div className="flex flex-wrap gap-2">
-              <span>Margen: {marginPct != null ? `${marginPct.toFixed(1)}%` : '—'}</span>
-              <span>· Ganancia: {gainArs != null ? `ARS $${gainArs.toLocaleString('es-AR')}` : '—'}</span>
+              <span>Margen estimado: {marginPct != null ? `${marginPct.toFixed(1)}%` : '—'}</span>
+              <span>· Ganancia estimada: {gainArs != null ? `ARS $${gainArs.toLocaleString('es-AR')}` : '—'}</span>
             </div>
             {marginPct == null || gainArs == null ? (
               <div className="mt-1 text-[11px]">Faltan datos para calcular margen</div>
