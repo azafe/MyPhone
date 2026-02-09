@@ -19,7 +19,7 @@ export type CreateSalePayload = {
   customer: { name: string; phone: string }
   payment: {
     method: string
-    card_brand?: string
+    card_brand?: string | null
     installments?: number
     surcharge_pct?: number
     deposit_ars?: number
