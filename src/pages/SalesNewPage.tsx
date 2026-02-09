@@ -139,6 +139,36 @@ export function SalesNewPage() {
     mutation.mutate(payload)
   }
 
+  const handleCreateSaleExample = async () => {
+    const examplePayload = {
+      sale_date: new Date().toISOString(),
+      customer: { name: 'Cliente Demo', phone: '11 1234-5678' },
+      payment: {
+        method: 'cash',
+        total_ars: 500000,
+        deposit_ars: 0,
+      },
+      items: [{ stock_item_id: form.getValues('stock_item_id') || '', sale_price_ars: 500000 }],
+    }
+
+    if (!examplePayload.items[0].stock_item_id) {
+      toast.error('Seleccioná un equipo para el ejemplo')
+      return
+    }
+
+    try {
+      await createSale(examplePayload)
+      toast.success('Venta creada (ejemplo)')
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
+    } catch (error) {
+      const err = error as Error & { code?: string; details?: unknown }
+      toast.error(err.message || 'Error al crear venta')
+      if (err.code) {
+        console.error('createSale error', err.code, err.details)
+      }
+    }
+  }
+
   return (
     <div className="space-y-6 pb-24">
       <div>
@@ -298,9 +328,14 @@ export function SalesNewPage() {
           <Button variant="secondary" onClick={() => navigate('/sales')}>
             Cancelar
           </Button>
-          <Button onClick={form.handleSubmit(onSubmit)} disabled={mutation.isPending}>
-            {mutation.isPending ? 'Guardando...' : 'Guardar venta'}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={handleCreateSaleExample}>
+              Crear Venta
+            </Button>
+            <Button onClick={form.handleSubmit(onSubmit)} disabled={mutation.isPending}>
+              {mutation.isPending ? 'Guardando...' : 'Guardar venta'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
