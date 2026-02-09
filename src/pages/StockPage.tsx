@@ -255,6 +255,13 @@ export function StockPage() {
       setDetailsOpen(false)
       setSelected(null)
     },
+    onError: (error) => {
+      const err = error as Error & { code?: string; details?: unknown }
+      toast.error(err.message || 'No se pudo eliminar el equipo')
+      if (err.code) {
+        console.error('deleteStockItem error', err.code, err.details)
+      }
+    },
   })
 
   const statusMutation = useMutation({
