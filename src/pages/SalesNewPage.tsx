@@ -100,7 +100,7 @@ export function SalesNewPage() {
   const onSubmit = (values: FormValues) => {
     const parsed = schema.parse(values)
     const payload = {
-      sale_date: new Date().toISOString().slice(0, 10),
+      sale_date: new Date().toISOString(),
       customer: {
         name: parsed.customer_name,
         phone: parsed.customer_phone,
@@ -116,21 +116,24 @@ export function SalesNewPage() {
       items: [
         {
           stock_item_id: parsed.stock_item_id,
+          sale_price_ars: parsed.total_ars,
         },
       ],
       trade_in: parsed.trade_in_enabled
         ? {
-            brand: parsed.trade_brand,
-            model: parsed.trade_model,
-            storage: parsed.trade_storage,
-            color: parsed.trade_color,
-            condition: parsed.trade_condition,
-            imei: parsed.trade_imei,
-            trade_value_usd: parsed.trade_value_usd,
-            fx_rate_used: parsed.trade_fx_rate,
-            trade_value_ars: parsed.trade_value_ars ?? tradeArs,
+            enabled: true,
+            device: {
+              brand: parsed.trade_brand ?? '',
+              model: parsed.trade_model ?? '',
+              storage_gb: parsed.trade_storage ? Number(parsed.trade_storage) : undefined,
+              color: parsed.trade_color,
+              condition: parsed.trade_condition,
+              imei: parsed.trade_imei,
+            },
+            trade_value_usd: parsed.trade_value_usd ?? 0,
+            fx_rate_used: parsed.trade_fx_rate ?? 0,
           }
-        : {},
+        : undefined,
     }
 
     mutation.mutate(payload)
