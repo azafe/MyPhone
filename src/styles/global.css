@@ -25,3 +25,12 @@ body {
 ::selection {
   background: rgba(11, 74, 162, 0.2);
 }
+
+/* iOS Safari: prevent auto-zoom on form focus */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
