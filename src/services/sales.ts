@@ -3,15 +3,18 @@ import { apiClient } from '../lib/apiClient'
 import type { Sale } from '../types'
 
 export async function fetchSales(query?: string) {
-  let request = supabase.from('sales').select('*').order('created_at', { ascending: false })
-  if (query) {
-    request = request.or(
-      `customer_name.ilike.%${query}%,customer_phone.ilike.%${query}%,imei.ilike.%${query}%`
+  const data = (await apiClient('/api/sales')) as Sale[]
+  if (!query) return data ?? []
+  const q = query.toLowerCase()
+  return (data ?? []).filter((sale) => {
+    return (
+      sale.customer_name?.toLowerCase().includes(q) ||
+      sale.customer_phone?.toLowerCase().includes(q) ||
+      sale.stock_imei?.toLowerCase().includes(q) ||
+      sale.stock_model?.toLowerCase().includes(q) ||
+      sale.stock_item_id?.toLowerCase().includes(q)
     )
-  }
-  const { data, error } = await request
-  if (error) throw error
-  return (data ?? []) as Sale[]
+  })
 }
 
 export type CreateSalePayload = {
