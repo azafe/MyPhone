@@ -20,9 +20,9 @@ export type CreateSalePayload = {
   payment: {
     method: string
     card_brand?: string | null
-    installments?: number
-    surcharge_pct?: number
-    deposit_ars?: number
+    installments?: number | null
+    surcharge_pct?: number | null
+    deposit_ars?: number | null
     total_ars: number
   }
   items: Array<{ stock_item_id: string; sale_price_ars: number }>
