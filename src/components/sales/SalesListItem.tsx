@@ -1,6 +1,5 @@
 import type { Sale } from '../../types'
 import { Badge } from '../ui/Badge'
-import { cn } from '../../lib/utils'
 
 type SalesListItemProps = {
   sale: Sale
