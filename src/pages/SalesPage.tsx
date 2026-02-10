@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSales } from '../services/sales'
-import { Table } from '../components/ui/Table'
 import { Input } from '../components/ui/Input'
-import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
+import { SalesListItem } from '../components/sales/SalesListItem'
+import { SalesDetailsModal } from '../components/sales/SalesDetailsModal'
 
 export function SalesPage() {
   const [search, setSearch] = useState('')
@@ -14,6 +14,13 @@ export function SalesPage() {
     queryKey: ['sales', search],
     queryFn: () => fetchSales(search || undefined),
   })
+  const [selected, setSelected] = useState<(typeof data)[number] | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+
+  const openDetails = (sale: (typeof data)[number]) => {
+    setSelected(sale)
+    setDetailsOpen(true)
+  }
 
   return (
     <div className="space-y-6">
@@ -27,35 +34,22 @@ export function SalesPage() {
 
       <Input placeholder="Buscar cliente, teléfono o IMEI" value={search} onChange={(e) => setSearch(e.target.value)} />
 
-      <Table headers={['Cliente', 'Equipo', 'Total', 'Estado']}>
+      <div className="space-y-3">
         {isLoading ? (
-          <tr>
-            <td className="px-4 py-4 text-sm text-[#5B677A]" colSpan={4}>
-              Cargando...
-            </td>
-          </tr>
+          <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Cargando...</div>
         ) : data.length === 0 ? (
-          <tr>
-            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={4}>
-              Sin ventas registradas.
-            </td>
-          </tr>
+          <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">
+            Todavía no hay ventas registradas.
+            <div className="mt-4">
+              <Button onClick={() => navigate('/sales/new')}>Crear primera venta</Button>
+            </div>
+          </div>
         ) : (
-          data.map((sale) => (
-            <tr key={sale.id}>
-              <td className="px-4 py-3">
-                <div className="text-sm font-medium text-[#0F172A]">{sale.customer_name}</div>
-                <div className="text-xs text-[#5B677A]">{sale.customer_phone}</div>
-              </td>
-              <td className="px-4 py-3 text-sm">{sale.stock_item_id}</td>
-              <td className="px-4 py-3 text-sm">${sale.total_ars.toLocaleString('es-AR')}</td>
-              <td className="px-4 py-3">
-                <Badge label={sale.method} />
-              </td>
-            </tr>
-          ))
+          data.map((sale) => <SalesListItem key={sale.id} sale={sale} onClick={() => openDetails(sale)} />)
         )}
-      </Table>
+      </div>
+
+      <SalesDetailsModal open={detailsOpen} sale={selected ?? null} onClose={() => setDetailsOpen(false)} />
     </div>
   )
 }
