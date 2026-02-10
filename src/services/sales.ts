@@ -1,22 +1,26 @@
 import { apiClient } from '../lib/apiClient'
 import type { Sale } from '../types'
 
-type SalesResponse =
-  | Sale[]
-  | { data?: Sale[] | { data?: Sale[]; rows?: Sale[]; sales?: Sale[] } }
-  | { rows?: Sale[] }
-  | { sales?: Sale[] }
+type SalesResponse = unknown
+
+type SalesEnvelope = {
+  data?: unknown
+  rows?: unknown
+  sales?: unknown
+}
 
 export async function fetchSales(query?: string) {
   const response = (await apiClient('/api/sales')) as SalesResponse
+  const root = response as SalesEnvelope
+  const nested = (root?.data ?? {}) as SalesEnvelope
   const data =
-    (Array.isArray(response) && response) ||
-    (Array.isArray(response?.data) && response?.data) ||
-    (Array.isArray(response?.data?.data) && response?.data?.data) ||
-    (Array.isArray(response?.data?.rows) && response?.data?.rows) ||
-    (Array.isArray(response?.data?.sales) && response?.data?.sales) ||
-    (Array.isArray((response as { rows?: Sale[] }).rows) && (response as { rows?: Sale[] }).rows) ||
-    (Array.isArray((response as { sales?: Sale[] }).sales) && (response as { sales?: Sale[] }).sales) ||
+    (Array.isArray(response) && (response as Sale[])) ||
+    (Array.isArray(root?.data) && (root.data as Sale[])) ||
+    (Array.isArray(nested?.data) && (nested.data as Sale[])) ||
+    (Array.isArray(nested?.rows) && (nested.rows as Sale[])) ||
+    (Array.isArray(nested?.sales) && (nested.sales as Sale[])) ||
+    (Array.isArray(root?.rows) && (root.rows as Sale[])) ||
+    (Array.isArray(root?.sales) && (root.sales as Sale[])) ||
     []
   if (!query) return data
   const q = query.toLowerCase()

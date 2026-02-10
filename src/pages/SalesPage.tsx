@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteSale, fetchSales } from '../services/sales'
+import type { Sale } from '../types'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import toast from 'react-hot-toast'
@@ -13,7 +14,7 @@ export function SalesPage() {
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<Sale[]>({
     queryKey: ['sales', search],
     queryFn: () => fetchSales(search || undefined),
   })
