@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchSales } from '../services/sales'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
+import toast from 'react-hot-toast'
 import { SalesListItem } from '../components/sales/SalesListItem'
 import { SalesDetailsModal } from '../components/sales/SalesDetailsModal'
 
@@ -49,7 +50,13 @@ export function SalesPage() {
         )}
       </div>
 
-      <SalesDetailsModal open={detailsOpen} sale={selected ?? null} onClose={() => setDetailsOpen(false)} />
+      <SalesDetailsModal
+        open={detailsOpen}
+        sale={selected ?? null}
+        onClose={() => setDetailsOpen(false)}
+        onEdit={() => selected && navigate(`/sales/new?stock=${selected.stock_item_id}`)}
+        onDelete={() => toast.error('Eliminar venta aún no está disponible')}
+      />
     </div>
   )
 }

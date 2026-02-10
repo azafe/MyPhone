@@ -1,11 +1,14 @@
 import type { Sale } from '../../types'
 import { Modal } from '../ui/Modal'
 import { Badge } from '../ui/Badge'
+import { Button } from '../ui/Button'
 
 type SalesDetailsModalProps = {
   open: boolean
   sale: Sale | null
   onClose: () => void
+  onEdit: () => void
+  onDelete: () => void
 }
 
 const methodLabels: Record<string, string> = {
@@ -16,7 +19,7 @@ const methodLabels: Record<string, string> = {
   trade_in: 'Permuta',
 }
 
-export function SalesDetailsModal({ open, sale, onClose }: SalesDetailsModalProps) {
+export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: SalesDetailsModalProps) {
   if (!sale) return null
 
   const customer = sale.customer_name || 'Cliente sin nombre'
@@ -25,7 +28,22 @@ export function SalesDetailsModal({ open, sale, onClose }: SalesDetailsModalProp
     : '—'
 
   return (
-    <Modal open={open} title="Detalle de venta" subtitle={customer} onClose={onClose}>
+    <Modal
+      open={open}
+      title="Detalle de venta"
+      subtitle={customer}
+      onClose={onClose}
+      actions={
+        <>
+          <Button variant="secondary" onClick={onEdit}>
+            Editar
+          </Button>
+          <Button variant="danger" onClick={onDelete}>
+            Eliminar
+          </Button>
+        </>
+      }
+    >
       <div className="flex flex-wrap items-center gap-2">
         <div className="text-sm font-semibold text-[#0F172A]">${sale.total_ars.toLocaleString('es-AR')}</div>
         <Badge label={methodLabels[sale.method] ?? sale.method} />
