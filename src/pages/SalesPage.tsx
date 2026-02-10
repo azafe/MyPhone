@@ -1,22 +1,43 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { fetchSales } from '../services/sales'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { deleteSale, fetchSales } from '../services/sales'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import toast from 'react-hot-toast'
 import { SalesListItem } from '../components/sales/SalesListItem'
 import { SalesDetailsModal } from '../components/sales/SalesDetailsModal'
+import { Modal } from '../components/ui/Modal'
 
 export function SalesPage() {
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data = [], isLoading } = useQuery({
     queryKey: ['sales', search],
     queryFn: () => fetchSales(search || undefined),
   })
   const [selected, setSelected] = useState<(typeof data)[number] | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteSale,
+    onSuccess: () => {
+      toast.success('Venta eliminada')
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
+      setConfirmDeleteOpen(false)
+      setDetailsOpen(false)
+      setSelected(null)
+    },
+    onError: (error) => {
+      const err = error as Error & { code?: string; details?: unknown }
+      toast.error(err.message || 'No se pudo eliminar la venta')
+      if (err.code) {
+        console.error('deleteSale error', err.code, err.details)
+      }
+    },
+  })
 
   const openDetails = (sale: (typeof data)[number]) => {
     setSelected(sale)
@@ -55,8 +76,30 @@ export function SalesPage() {
         sale={selected ?? null}
         onClose={() => setDetailsOpen(false)}
         onEdit={() => selected && navigate(`/sales/new?stock=${selected.stock_item_id}`)}
-        onDelete={() => toast.error('Eliminar venta aún no está disponible')}
+        onDelete={() => setConfirmDeleteOpen(true)}
       />
+
+      <Modal
+        open={confirmDeleteOpen}
+        title="Eliminar venta"
+        onClose={() => setConfirmDeleteOpen(false)}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => selected && deleteMutation.mutate(selected.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[#5B677A]">¿Eliminar esta venta? Esta acción no se puede deshacer.</p>
+      </Modal>
     </div>
   )
 }

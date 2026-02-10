@@ -44,3 +44,7 @@ export type CreateSalePayload = {
 export async function createSale(payload: CreateSalePayload) {
   return apiClient('/api/sales', { method: 'POST', body: payload })
 }
+
+export async function deleteSale(id: string) {
+  return apiClient(`/api/sales/${id}`, { method: 'DELETE' })
+}
