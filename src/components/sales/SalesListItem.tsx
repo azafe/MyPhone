@@ -29,19 +29,17 @@ export function SalesListItem({ sale, onClick }: SalesListItemProps) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-[#0F172A]">{customer}</div>
+          <div className="mt-1 text-xs text-[#5B677A]">
+            {sale.stock_model || sale.stock_item_id || '—'} · IMEI: {sale.stock_imei ?? '—'}
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#5B677A]">
-            <span>Equipo: {sale.stock_item_id || '—'}</span>
+            <span>{dateLabel}</span>
             <Badge label={methodLabels[sale.method] ?? sale.method} />
           </div>
         </div>
         <div className="text-right text-sm font-semibold text-[#0F172A]">
           ${sale.total_ars.toLocaleString('es-AR')}
         </div>
-      </div>
-
-      <div className="text-xs text-[#5B677A]">
-        {dateLabel}
-        {sale.customer_phone ? ` · ${sale.customer_phone}` : ''}
       </div>
     </button>
   )

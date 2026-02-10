@@ -35,6 +35,8 @@ export type StockItem = {
 export type Sale = {
   id: string
   stock_item_id: string
+  stock_model?: string | null
+  stock_imei?: string | null
   customer_name: string
   customer_phone: string
   method: 'cash' | 'transfer' | 'card' | 'mixed' | 'trade_in'
