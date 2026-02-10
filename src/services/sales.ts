@@ -1,9 +1,23 @@
 import { apiClient } from '../lib/apiClient'
 import type { Sale } from '../types'
 
+type SalesResponse =
+  | Sale[]
+  | { data?: Sale[] | { data?: Sale[]; rows?: Sale[]; sales?: Sale[] } }
+  | { rows?: Sale[] }
+  | { sales?: Sale[] }
+
 export async function fetchSales(query?: string) {
-  const response = (await apiClient('/api/sales')) as Sale[] | { data?: Sale[] }
-  const data = Array.isArray(response) ? response : response?.data ?? []
+  const response = (await apiClient('/api/sales')) as SalesResponse
+  const data =
+    (Array.isArray(response) && response) ||
+    (Array.isArray(response?.data) && response?.data) ||
+    (Array.isArray(response?.data?.data) && response?.data?.data) ||
+    (Array.isArray(response?.data?.rows) && response?.data?.rows) ||
+    (Array.isArray(response?.data?.sales) && response?.data?.sales) ||
+    (Array.isArray((response as { rows?: Sale[] }).rows) && (response as { rows?: Sale[] }).rows) ||
+    (Array.isArray((response as { sales?: Sale[] }).sales) && (response as { sales?: Sale[] }).sales) ||
+    []
   if (!query) return data
   const q = query.toLowerCase()
   return data.filter((sale) => {
