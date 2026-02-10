@@ -37,6 +37,11 @@ export type Sale = {
   stock_item_id: string
   stock_model?: string | null
   stock_imei?: string | null
+  stock_brand?: string | null
+  stock_storage_gb?: number | null
+  stock_color?: string | null
+  stock_condition?: string | null
+  stock_battery_pct?: number | null
   customer_name: string
   customer_phone: string
   customer?: {
@@ -45,6 +50,9 @@ export type Sale = {
     phone?: string | null
   } | null
   method: 'cash' | 'transfer' | 'card' | 'mixed' | 'trade_in'
+  status?: 'paid' | 'completed' | 'pending' | 'cancelled' | string | null
+  seller_name?: string | null
+  seller_full_name?: string | null
   card_brand?: string | null
   installments?: number | null
   surcharge_pct?: number | null

@@ -19,6 +19,22 @@ const methodLabels: Record<string, string> = {
   trade_in: 'Permuta',
 }
 
+const statusLabels: Record<string, string> = {
+  paid: 'Pagada',
+  completed: 'Completada',
+  pending: 'Pendiente',
+  cancelled: 'Cancelada',
+}
+
+const statusStyles: Record<string, string> = {
+  paid: 'bg-[rgba(22,163,74,0.12)] text-[#166534]',
+  completed: 'bg-[rgba(22,163,74,0.12)] text-[#166534]',
+  pending: 'bg-[rgba(245,158,11,0.14)] text-[#92400E]',
+  cancelled: 'bg-[rgba(91,103,122,0.16)] text-[#334155]',
+}
+
+const formatArs = (value?: number | null) => (typeof value === 'number' ? `$${value.toLocaleString('es-AR')}` : '—')
+
 export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: SalesDetailsModalProps) {
   if (!sale) return null
 
@@ -30,61 +46,135 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
   const dateLabel = sale.created_at
     ? new Date(sale.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
     : '—'
+  const phone = sale.customer_phone || sale.customer?.phone || '—'
+  const equipmentName = [sale.stock_brand, sale.stock_model].filter(Boolean).join(' ')
+  const equipmentMeta = [sale.stock_storage_gb ? `${sale.stock_storage_gb}GB` : null, sale.stock_color]
+    .filter(Boolean)
+    .join(' · ')
+  const statusLabel = sale.status ? statusLabels[sale.status] ?? sale.status : null
+  const statusStyle = sale.status ? statusStyles[sale.status] ?? 'bg-[rgba(91,103,122,0.16)] text-[#334155]' : ''
 
   return (
     <Modal
       open={open}
       title="Detalle de venta"
-      subtitle={customer}
+      subtitle={`${customer}${phone ? ` · ${phone}` : ''}`}
       onClose={onClose}
       actions={
-        <>
-          <Button variant="secondary" onClick={onEdit}>
-            Editar
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <Button variant="secondary" onClick={onClose}>
+            Cerrar
           </Button>
-          <Button variant="danger" onClick={onDelete}>
-            Eliminar
-          </Button>
-        </>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={onEdit}>
+              Editar
+            </Button>
+            <Button variant="danger" onClick={onDelete}>
+              Eliminar
+            </Button>
+          </div>
+        </div>
       }
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="text-sm font-semibold text-[#0F172A]">${sale.total_ars.toLocaleString('es-AR')}</div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="text-lg font-semibold text-[#0F172A]">{formatArs(sale.total_ars)}</div>
         <Badge label={methodLabels[sale.method] ?? sale.method} />
+        {statusLabel ? <span className={`rounded-full px-2 py-0.5 text-xs ${statusStyle}`}>{statusLabel}</span> : null}
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
+          <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Resumen</h4>
+          <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
+            <div className="text-lg font-semibold">{formatArs(sale.total_ars)}</div>
+            <div>Método: {methodLabels[sale.method] ?? sale.method}</div>
+            <div>Fecha: {dateLabel}</div>
+            {(sale.seller_name || sale.seller_full_name) && (
+              <div>Vendedor: {sale.seller_name || sale.seller_full_name}</div>
+            )}
+          </div>
+        </section>
+
         <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Cliente</h4>
           <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
             <div>{customer}</div>
-            <div className="text-[#5B677A]">{sale.customer_phone || sale.customer?.phone || '—'}</div>
+            <div className="text-[#5B677A]">{phone}</div>
           </div>
         </section>
 
         <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Equipo</h4>
           <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
-            <div>{sale.stock_item_id || '—'}</div>
+            {equipmentName ? (
+              <>
+                <div className="font-medium">{equipmentName}</div>
+                {equipmentMeta ? <div className="text-[#5B677A]">{equipmentMeta}</div> : null}
+                {sale.stock_condition ? <div>Condición: {sale.stock_condition}</div> : null}
+                {typeof sale.stock_battery_pct === 'number' ? <div>Batería: {sale.stock_battery_pct}%</div> : null}
+                {sale.stock_imei ? (
+                  <div className="flex items-center gap-2 text-xs text-[#5B677A]">
+                    <span className="font-mono text-[#0F172A]">IMEI {sale.stock_imei}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => navigator.clipboard?.writeText(sale.stock_imei ?? '')}
+                    >
+                      Copiar
+                    </Button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="text-sm text-[#5B677A]">Equipo: —</div>
+            )}
           </div>
         </section>
 
         <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Pago</h4>
           <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
-            <div>Método: {methodLabels[sale.method] ?? sale.method}</div>
-            <div>Total ARS: ${sale.total_ars.toLocaleString('es-AR')}</div>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
-          <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Meta</h4>
-          <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
-            <div>Fecha: {dateLabel}</div>
-            <div>ID: {sale.id}</div>
+            <div>Total ARS: {formatArs(sale.total_ars)}</div>
+            {sale.card_brand ? <div>Tarjeta: {sale.card_brand}</div> : null}
+            {sale.installments ? <div>Cuotas: {sale.installments}</div> : null}
+            {typeof sale.deposit_ars === 'number' ? <div>Seña ARS: {formatArs(sale.deposit_ars)}</div> : null}
           </div>
         </section>
       </div>
+
+      <details className="mt-4 rounded-xl border border-[#E6EBF2] bg-white p-4">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">
+          Ver info técnica
+        </summary>
+        <div className="mt-3 space-y-2 text-xs text-[#5B677A]">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[#0F172A]">Venta ID: {sale.id}</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={() => navigator.clipboard?.writeText(sale.id)}
+            >
+              Copiar
+            </Button>
+          </div>
+          {sale.stock_item_id ? (
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[#0F172A]">Equipo ID: {sale.stock_item_id}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => navigator.clipboard?.writeText(sale.stock_item_id)}
+              >
+                Copiar
+              </Button>
+            </div>
+          ) : null}
+          {sale.created_at ? <div>created_at: {sale.created_at}</div> : null}
+        </div>
+      </details>
     </Modal>
   )
 }
