@@ -1,4 +1,3 @@
-import { supabase } from '../lib/supabase'
 import { apiClient } from '../lib/apiClient'
 import type { Sale } from '../types'
 
