@@ -2,10 +2,11 @@ import { apiClient } from '../lib/apiClient'
 import type { Sale } from '../types'
 
 export async function fetchSales(query?: string) {
-  const data = (await apiClient('/api/sales')) as Sale[]
-  if (!query) return data ?? []
+  const response = (await apiClient('/api/sales')) as Sale[] | { data?: Sale[] }
+  const data = Array.isArray(response) ? response : response?.data ?? []
+  if (!query) return data
   const q = query.toLowerCase()
-  return (data ?? []).filter((sale) => {
+  return data.filter((sale) => {
     return (
       sale.customer_name?.toLowerCase().includes(q) ||
       sale.customer_phone?.toLowerCase().includes(q) ||
