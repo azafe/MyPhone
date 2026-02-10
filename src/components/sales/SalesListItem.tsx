@@ -15,7 +15,11 @@ const methodLabels: Record<string, string> = {
 }
 
 export function SalesListItem({ sale, onClick }: SalesListItemProps) {
-  const customer = sale.customer_name || 'Cliente sin nombre'
+  const customer =
+    sale.customer_name ||
+    sale.customer?.name ||
+    sale.customer?.full_name ||
+    'Cliente sin nombre'
   const dateLabel = sale.created_at
     ? new Date(sale.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
     : '—'

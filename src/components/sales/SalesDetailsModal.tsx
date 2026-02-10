@@ -22,7 +22,11 @@ const methodLabels: Record<string, string> = {
 export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: SalesDetailsModalProps) {
   if (!sale) return null
 
-  const customer = sale.customer_name || 'Cliente sin nombre'
+  const customer =
+    sale.customer_name ||
+    sale.customer?.name ||
+    sale.customer?.full_name ||
+    'Cliente sin nombre'
   const dateLabel = sale.created_at
     ? new Date(sale.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
     : '—'
@@ -54,7 +58,7 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Cliente</h4>
           <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
             <div>{customer}</div>
-            <div className="text-[#5B677A]">{sale.customer_phone || '—'}</div>
+            <div className="text-[#5B677A]">{sale.customer_phone || sale.customer?.phone || '—'}</div>
           </div>
         </section>
 

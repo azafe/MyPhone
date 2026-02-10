@@ -39,6 +39,11 @@ export type Sale = {
   stock_imei?: string | null
   customer_name: string
   customer_phone: string
+  customer?: {
+    name?: string | null
+    full_name?: string | null
+    phone?: string | null
+  } | null
   method: 'cash' | 'transfer' | 'card' | 'mixed' | 'trade_in'
   card_brand?: string | null
   installments?: number | null
