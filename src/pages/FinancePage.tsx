@@ -21,7 +21,10 @@ export function FinancePage() {
     queryFn: () => fetchFinanceSummary(from, to),
   })
 
-  const mixRows = useMemo(() => data?.payment_mix ?? [], [data])
+  const mixRows = useMemo(
+    () => (Array.isArray(data?.payment_mix) ? data?.payment_mix : []),
+    [data],
+  )
 
   return (
     <div className="space-y-6">
