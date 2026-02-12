@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -39,6 +39,30 @@ const schema = z.object({
   trade_fx_rate: z.coerce.number().optional().nullable(),
   trade_value_ars: z.coerce.number().optional().nullable(),
 })
+  .superRefine((values, ctx) => {
+    if (values.payment_currency === 'ars' && (!values.payment_ars || values.payment_ars <= 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá un monto en ARS', path: ['payment_ars'] })
+    }
+    if (values.payment_currency === 'usd') {
+      if (!values.payment_usd || values.payment_usd <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá un monto en USD', path: ['payment_usd'] })
+      }
+      if (!values.payment_fx_rate || values.payment_fx_rate <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá el tipo de cambio', path: ['payment_fx_rate'] })
+      }
+    }
+    if (values.payment_currency === 'mixed') {
+      if (!values.payment_ars || values.payment_ars <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá un monto en ARS', path: ['payment_ars'] })
+      }
+      if (!values.payment_usd || values.payment_usd <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá un monto en USD', path: ['payment_usd'] })
+      }
+      if (!values.payment_fx_rate || values.payment_fx_rate <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá el tipo de cambio', path: ['payment_fx_rate'] })
+      }
+    }
+  })
 
 type FormValues = z.input<typeof schema>
 
@@ -70,6 +94,7 @@ export function SalesNewPage() {
       stock_item_id: preselected,
       method: 'cash',
       payment_currency: 'ars',
+      total_ars: 0,
       trade_in_enabled: false,
     },
   })
@@ -79,6 +104,7 @@ export function SalesNewPage() {
   const paymentFx = form.watch('payment_fx_rate') ?? 0
   const paymentArs = form.watch('payment_ars') ?? 0
   const paymentUsd = form.watch('payment_usd') ?? 0
+  const selectedStockId = form.watch('stock_item_id')
   const tradeEnabled = form.watch('trade_in_enabled')
   const tradeUsd = form.watch('trade_value_usd') ?? 0
   const tradeFx = form.watch('trade_fx_rate') ?? 0
@@ -100,11 +126,20 @@ export function SalesNewPage() {
     return null
   }, [paymentCurrency])
 
+  useEffect(() => {
+    form.setValue('total_ars', computedTotalArs ? Number(computedTotalArs) : 0, { shouldValidate: true })
+  }, [computedTotalArs, form])
+
   const surcharge = useMemo(() => {
     if (!cardBrand || !installments) return 0
     const rule = rules.find((r) => r.card_brand === cardBrand && r.installments === Number(installments))
     return rule?.surcharge_pct ?? 0
   }, [rules, cardBrand, installments])
+
+  const selectedStock = useMemo(
+    () => stock.find((item) => item.id === selectedStockId) ?? null,
+    [stock, selectedStockId],
+  )
 
   const mutation = useMutation({
     mutationFn: createSale,
@@ -231,6 +266,19 @@ export function SalesNewPage() {
                 ))}
               </Select>
             </Field>
+            {selectedStock && (
+              <div className="mt-3 rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">
+                <div className="font-medium">
+                  {selectedStock.brand} {selectedStock.model} - {selectedStock.imei ?? 'Sin IMEI'}
+                </div>
+                <div className="mt-1 text-xs text-[#5B677A]">
+                  {selectedStock.sale_price_usd
+                    ? `USD ${Math.round(selectedStock.sale_price_usd).toLocaleString('es-AR')}`
+                    : 'USD —'}{' '}
+                  · {selectedStock.sale_price_ars ? `$${selectedStock.sale_price_ars.toLocaleString('es-AR')}` : '$ —'}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Card>
