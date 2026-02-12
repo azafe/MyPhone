@@ -26,7 +26,7 @@ export function DashboardPage() {
 
   const soldThisMonth = useMemo(() => {
     const start = new Date(from)
-    const end = new Date(to)
+    const end = new Date()
     return sales.filter((sale) => {
       const raw = (sale as { sale_date?: string; created_at?: string }).sale_date ?? sale.created_at
       if (!raw) return false
