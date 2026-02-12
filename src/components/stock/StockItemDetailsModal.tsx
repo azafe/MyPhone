@@ -131,22 +131,12 @@ export function StockItemDetailsModal({
               <span>{item.color_other ?? item.color ?? '—'}</span>
             </div>
             <div className="flex justify-between gap-3">
-              <span className="text-[#5B677A]">IMEI</span>
-              <span>{item.imei ?? 'Sin IMEI'}</span>
-            </div>
-          </dl>
-        </section>
-
-        <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
-          <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Condición</h4>
-          <dl className="mt-3 space-y-2 text-sm text-[#0F172A]">
-            <div className="flex justify-between gap-3">
-              <span className="text-[#5B677A]">Condición</span>
-              <span>{conditionLabel[item.condition] ?? item.condition}</span>
-            </div>
-            <div className="flex justify-between gap-3">
               <span className="text-[#5B677A]">Batería</span>
               <span>{batteryValue != null ? `${batteryValue}%` : '—'}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-[#5B677A]">IMEI</span>
+              <span>{item.imei ?? 'Sin IMEI'}</span>
             </div>
           </dl>
         </section>
