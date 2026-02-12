@@ -26,7 +26,7 @@ const schema = z.object({
   card_brand: z.string().optional().nullable(),
   installments: z.coerce.number().optional().nullable(),
   surcharge_pct: z.coerce.number().optional().nullable(),
-  total_ars: z.coerce.number().min(0),
+  total_ars: z.coerce.number().min(0.01),
   deposit_ars: z.coerce.number().optional().nullable(),
   trade_in_enabled: z.boolean().default(false),
   trade_brand: z.string().optional(),
@@ -155,7 +155,12 @@ export function SalesNewPage() {
   })
 
   const onSubmit = (values: FormValues) => {
+    if (!computedTotalArs || computedTotalArs <= 0) {
+      toast.error('Ingresá un monto válido para la venta')
+      return
+    }
     const parsed = schema.parse(values)
+    const totalArs = Number(computedTotalArs)
     const payload = {
       sale_date: new Date().toISOString(),
       customer: {
@@ -167,23 +172,13 @@ export function SalesNewPage() {
         card_brand: parsed.card_brand,
         installments: parsed.installments,
         surcharge_pct: parsed.surcharge_pct ?? surcharge,
-        total_ars:
-          parsed.payment_currency === 'ars'
-            ? Number(parsed.payment_ars || parsed.total_ars || 0)
-            : parsed.payment_currency === 'usd'
-            ? Number(parsed.payment_usd || 0) * Number(parsed.payment_fx_rate || 0)
-            : Number(parsed.payment_ars || 0) + Number(parsed.payment_usd || 0) * Number(parsed.payment_fx_rate || 0),
+        total_ars: totalArs,
         deposit_ars: parsed.deposit_ars,
       },
       items: [
         {
           stock_item_id: parsed.stock_item_id,
-          sale_price_ars:
-            parsed.payment_currency === 'ars'
-              ? Number(parsed.payment_ars || parsed.total_ars || 0)
-              : parsed.payment_currency === 'usd'
-              ? Number(parsed.payment_usd || 0) * Number(parsed.payment_fx_rate || 0)
-              : Number(parsed.payment_ars || 0) + Number(parsed.payment_usd || 0) * Number(parsed.payment_fx_rate || 0),
+          sale_price_ars: totalArs,
         },
       ],
       trade_in: parsed.trade_in_enabled
