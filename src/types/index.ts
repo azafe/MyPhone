@@ -58,6 +58,7 @@ export type Sale = {
   surcharge_pct?: number | null
   total_ars: number
   deposit_ars?: number | null
+  sale_date?: string | null
   created_at?: string
 }
 
