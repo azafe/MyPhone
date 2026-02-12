@@ -78,7 +78,7 @@ export function StockItemDetailsModal({
     <Modal
       open={open}
       title={`${item.brand} ${item.model}`}
-      subtitle={[item.storage_gb ? `${item.storage_gb} GB` : null, item.color, conditionLabel[item.condition]].filter(Boolean).join(' · ')}
+      subtitle={categoryLabel[item.category] ?? item.category}
       onClose={onClose}
     >
       <div className="flex flex-wrap items-center gap-3">

@@ -17,12 +17,6 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
     item.sale_price_usd ??
     (item.sale_price_ars && item.fx_rate_used ? Number(item.sale_price_ars) / Number(item.fx_rate_used) : null)
   const hasPrice = Boolean(item.sale_price_ars || saleUsd)
-  const conditionLabel: Record<string, string> = {
-    new: 'Nuevo',
-    like_new: 'Como nuevo',
-    used: 'Usado',
-    outlet: 'Outlet',
-  }
   const categoryLabel: Record<string, string> = {
     new: 'Nuevo',
     promotion: 'Promoción',
@@ -47,7 +41,7 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="text-sm font-semibold text-[#0F172A]">
               {item.model ? `${item.brand} ${item.model}` : item.brand}
-              {item.imei ? ` - ${item.imei}` : ''}
+              {item.imei ? ` - ${item.imei}` : ' - Sin IMEI'}
             </h4>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#5B677A]">
@@ -67,9 +61,7 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
               </span>
             )}
           </div>
-          <div className="mt-2 text-xs text-[#5B677A]">
-            {categoryLabel[item.category] ?? item.category} · {conditionLabel[item.condition] ?? item.condition}
-          </div>
+          <div className="mt-2 text-xs text-[#5B677A]">{categoryLabel[item.category] ?? item.category}</div>
         </div>
         <div className="text-right">
           <div className={cn('text-sm font-semibold', hasPrice ? 'text-[#0F172A]' : 'text-[#F59E0B]')}>
