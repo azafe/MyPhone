@@ -223,7 +223,7 @@ export function StockItemDetailsModal({
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          <Button onClick={onSell}>Vender</Button>
+          {item.status !== 'sold' && <Button onClick={onSell}>Vender</Button>}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={onEdit}>

@@ -51,8 +51,8 @@ export function SalesNewPage() {
   })
 
   const { data: stock = [] } = useQuery({
-    queryKey: ['stock', 'all'],
-    queryFn: () => fetchStock(),
+    queryKey: ['stock', 'available_reserved'],
+    queryFn: () => fetchStock({ statuses: ['available', 'reserved'] }),
   })
 
   const { data: rules = [] } = useQuery({
