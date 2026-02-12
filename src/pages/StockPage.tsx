@@ -64,8 +64,8 @@ const schema = z
       if (!values.imei_later) {
         if (!values.imei) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'El IMEI es requerido', path: ['imei'] })
-        } else if (!/^\d{14,16}$/.test(values.imei)) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'IMEI inválido (14-16 dígitos)', path: ['imei'] })
+        } else if (!/^\d{4}$/.test(values.imei)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'IMEI inválido (4 dígitos)', path: ['imei'] })
         }
       }
     } else {
@@ -527,7 +527,7 @@ export function StockPage() {
               </Field>
               <div className="md:col-span-2">
                 <Field label="IMEI (opcional)">
-                  <Input className="h-11" {...form.register('imei')} placeholder="14–16 dígitos" disabled={imeiLater} />
+                  <Input className="h-11" {...form.register('imei')} placeholder="4 dígitos" disabled={imeiLater} />
                   {isAppleBrand(brand) && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-[#5B677A]">
                       <input type="checkbox" {...form.register('imei_later')} />
