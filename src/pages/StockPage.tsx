@@ -133,18 +133,18 @@ export function StockPage() {
   ]) as Array<number | string | null | undefined>
 
   const purchaseArs = useMemo(() => {
-    const [purchaseUsd, fx, purchaseArsValue] = watched
-    const computed = Number(purchaseUsd || 0) * Number(fx || 0)
-    const current = Number(purchaseArsValue || 0)
-    return current > 0 ? current : computed
+    const [purchaseUsd, fx] = watched
+    const usd = Number(purchaseUsd || 0)
+    const rate = Number(fx || 0)
+    if (!usd || !rate) return 0
+    return usd * rate
   }, [watched])
 
   const saleArs = useMemo(() => {
     const saleUsd = Number(watched[3] || 0)
     const fx = Number(watched[1] || 0)
-    const saleArsValue = Number(watched[4] || 0)
-    const computed = saleUsd * fx
-    return saleArsValue > 0 ? saleArsValue : computed
+    if (!saleUsd || !fx) return 0
+    return saleUsd * fx
   }, [watched])
 
   const marginPct = useMemo(() => {
@@ -205,11 +205,11 @@ export function StockPage() {
   }, [isConditionNew, form])
 
   useEffect(() => {
-    form.setValue('purchase_ars', Number(purchaseArs || 0), { shouldValidate: true })
+    form.setValue('purchase_ars', purchaseArs ? Number(purchaseArs) : 0, { shouldValidate: true })
   }, [purchaseArs, form])
 
   useEffect(() => {
-    form.setValue('sale_price_ars', Number(saleArs || 0), { shouldValidate: true })
+    form.setValue('sale_price_ars', saleArs ? Number(saleArs) : 0, { shouldValidate: true })
   }, [saleArs, form])
 
   useEffect(() => {
