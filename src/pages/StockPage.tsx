@@ -614,35 +614,15 @@ export function StockPage() {
         onClose={() => setDetailsOpen(false)}
         onEdit={() => selected && openEdit(selected)}
         onDelete={() => setConfirmDeleteOpen(true)}
-        onReserve={() =>
-          selected &&
-          statusMutation.mutate({
-            id: selected.id,
-            status: 'reserved',
-          })
-        }
-        onRelease={() =>
-          selected &&
-          statusMutation.mutate({
-            id: selected.id,
-            status: 'available',
-          })
-        }
         onSell={() => selected && navigate(`/sales/new?stock=${selected.id}`)}
-        onMarkSold={() =>
-          selected &&
-          statusMutation.mutate({
-            id: selected.id,
-            status: 'sold',
-          })
-        }
-        onMarkAvailable={() =>
-          selected &&
-          statusMutation.mutate({
-            id: selected.id,
-            status: 'available',
-          })
-        }
+        onStatusChange={(nextStatus) => {
+          if (!selected) return
+          setSelected({ ...selected, status: nextStatus })
+          queryClient.setQueryData<StockItem[]>(['stock', filters], (prev) =>
+            (prev ?? []).map((item) => (item.id === selected.id ? { ...item, status: nextStatus } : item)),
+          )
+          statusMutation.mutate({ id: selected.id, status: nextStatus })
+        }}
       />
 
       <Modal

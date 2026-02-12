@@ -18,11 +18,8 @@ type StockItemDetailsModalProps = {
   onClose: () => void
   onEdit: () => void
   onDelete: () => void
-  onReserve: () => void
-  onRelease: () => void
   onSell: () => void
-  onMarkSold: () => void
-  onMarkAvailable: () => void
+  onStatusChange: (status: StockItem['status']) => void
 }
 
 export function StockItemDetailsModal({
@@ -31,11 +28,8 @@ export function StockItemDetailsModal({
   onClose,
   onEdit,
   onDelete,
-  onReserve,
-  onRelease,
   onSell,
-  onMarkSold,
-  onMarkAvailable,
+  onStatusChange,
 }: StockItemDetailsModalProps) {
   if (!item) return null
 
@@ -62,6 +56,11 @@ export function StockItemDetailsModal({
     reserved: 'Reservado',
     sold: 'Vendido',
   }
+  const statusOptions: Array<{ value: StockItem['status']; label: string }> = [
+    { value: 'available', label: 'Disponible' },
+    { value: 'reserved', label: 'Reservado' },
+    { value: 'sold', label: 'Vendido' },
+  ]
   const batteryValue = item.condition === 'new' ? 100 : item.battery_pct
   const categoryLabel: Record<string, string> = {
     new: 'Nuevo',
@@ -82,9 +81,22 @@ export function StockItemDetailsModal({
       subtitle={[item.storage_gb ? `${item.storage_gb} GB` : null, item.color, conditionLabel[item.condition]].filter(Boolean).join(' · ')}
       onClose={onClose}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3">
         <Badge label={conditionLabel[item.condition] ?? item.condition} tone="active" />
-        <Badge label={statusLabel[item.status] ?? item.status} tone={item.status} />
+        <div className="flex items-center gap-2">
+          <Badge label={statusLabel[item.status] ?? item.status} tone={item.status} />
+          <select
+            className="h-9 rounded-lg border border-[#E6EBF2] bg-white px-3 text-xs font-medium text-[#0F172A] shadow-sm focus:outline-none focus:ring-2 focus:ring-[rgba(11,74,162,0.25)]"
+            value={item.status}
+            onChange={(event) => onStatusChange(event.target.value as StockItem['status'])}
+          >
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         {!hasPrice && <Badge label="⚠️ Sin precio" tone="reserved" />}
       </div>
 
@@ -211,33 +223,7 @@ export function StockItemDetailsModal({
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {item.status === 'available' && (
-            <>
-              <Button variant="secondary" onClick={onReserve}>
-                Reservar
-              </Button>
-              <Button onClick={onSell}>Vender</Button>
-              <Button variant="secondary" onClick={onMarkSold}>
-                Marcar como vendido
-              </Button>
-            </>
-          )}
-          {item.status === 'reserved' && (
-            <>
-              <Button variant="secondary" onClick={onRelease}>
-                Liberar
-              </Button>
-              <Button onClick={onSell}>Vender</Button>
-              <Button variant="secondary" onClick={onMarkSold}>
-                Marcar como vendido
-              </Button>
-            </>
-          )}
-          {item.status === 'sold' && (
-            <Button variant="secondary" onClick={onMarkAvailable}>
-              Marcar como disponible
-            </Button>
-          )}
+          <Button onClick={onSell}>Vender</Button>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={onEdit}>
