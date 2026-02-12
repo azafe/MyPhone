@@ -19,6 +19,10 @@ const schema = z.object({
   customer_name: z.string().min(1),
   customer_phone: z.string().min(1),
   method: z.enum(['cash', 'transfer', 'card', 'mixed', 'trade_in']),
+  payment_currency: z.enum(['ars', 'usd', 'mixed']).default('ars'),
+  payment_fx_rate: z.coerce.number().optional().nullable(),
+  payment_ars: z.coerce.number().optional().nullable(),
+  payment_usd: z.coerce.number().optional().nullable(),
   card_brand: z.string().optional().nullable(),
   installments: z.coerce.number().optional().nullable(),
   surcharge_pct: z.coerce.number().optional().nullable(),
@@ -65,11 +69,16 @@ export function SalesNewPage() {
     defaultValues: {
       stock_item_id: preselected,
       method: 'cash',
+      payment_currency: 'ars',
       trade_in_enabled: false,
     },
   })
 
   const watchMethod = form.watch('method')
+  const paymentCurrency = form.watch('payment_currency')
+  const paymentFx = form.watch('payment_fx_rate') ?? 0
+  const paymentArs = form.watch('payment_ars') ?? 0
+  const paymentUsd = form.watch('payment_usd') ?? 0
   const tradeEnabled = form.watch('trade_in_enabled')
   const tradeUsd = form.watch('trade_value_usd') ?? 0
   const tradeFx = form.watch('trade_fx_rate') ?? 0
@@ -77,6 +86,19 @@ export function SalesNewPage() {
   const installments = form.watch('installments')
 
   const tradeArs = useMemo(() => Number(tradeUsd) * Number(tradeFx), [tradeUsd, tradeFx])
+
+  const computedTotalArs = useMemo(() => {
+    const fx = Number(paymentFx || 0)
+    if (paymentCurrency === 'ars') return Number(paymentArs || 0)
+    if (paymentCurrency === 'usd') return Number(paymentUsd || 0) * fx
+    return Number(paymentArs || 0) + Number(paymentUsd || 0) * fx
+  }, [paymentCurrency, paymentArs, paymentUsd, paymentFx])
+
+  const paymentNote = useMemo(() => {
+    if (paymentCurrency === 'usd') return 'Se convierte a ARS con el TC para guardar la venta.'
+    if (paymentCurrency === 'mixed') return 'Se suma ARS + USD × TC para el total.'
+    return null
+  }, [paymentCurrency])
 
   const surcharge = useMemo(() => {
     if (!cardBrand || !installments) return 0
@@ -110,13 +132,23 @@ export function SalesNewPage() {
         card_brand: parsed.card_brand,
         installments: parsed.installments,
         surcharge_pct: parsed.surcharge_pct ?? surcharge,
-        total_ars: parsed.total_ars,
+        total_ars:
+          parsed.payment_currency === 'ars'
+            ? Number(parsed.payment_ars || parsed.total_ars || 0)
+            : parsed.payment_currency === 'usd'
+            ? Number(parsed.payment_usd || 0) * Number(parsed.payment_fx_rate || 0)
+            : Number(parsed.payment_ars || 0) + Number(parsed.payment_usd || 0) * Number(parsed.payment_fx_rate || 0),
         deposit_ars: parsed.deposit_ars,
       },
       items: [
         {
           stock_item_id: parsed.stock_item_id,
-          sale_price_ars: parsed.total_ars,
+          sale_price_ars:
+            parsed.payment_currency === 'ars'
+              ? Number(parsed.payment_ars || parsed.total_ars || 0)
+              : parsed.payment_currency === 'usd'
+              ? Number(parsed.payment_usd || 0) * Number(parsed.payment_fx_rate || 0)
+              : Number(parsed.payment_ars || 0) + Number(parsed.payment_usd || 0) * Number(parsed.payment_fx_rate || 0),
         },
       ],
       trade_in: parsed.trade_in_enabled
@@ -192,8 +224,9 @@ export function SalesNewPage() {
                 <option value="">Seleccionar equipo</option>
                 {stock.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.brand} {item.model}
-                    {item.sale_price_ars ? ` - $${item.sale_price_ars.toLocaleString('es-AR')}` : ''} · {item.status}
+                    {item.brand} {item.model} - {item.imei ?? 'Sin IMEI'} -{' '}
+                    {item.sale_price_usd ? `USD ${Math.round(item.sale_price_usd).toLocaleString('es-AR')}` : 'USD —'} -{' '}
+                    {item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '$ —'}
                   </option>
                 ))}
               </Select>
@@ -243,6 +276,32 @@ export function SalesNewPage() {
                 <option value="trade_in">Permuta</option>
               </Select>
             </Field>
+            <Field label="Moneda de pago">
+              <Select {...form.register('payment_currency')}>
+                <option value="ars">ARS</option>
+                <option value="usd">USD</option>
+                <option value="mixed">Combinado</option>
+              </Select>
+            </Field>
+            {(paymentCurrency === 'usd' || paymentCurrency === 'mixed') && (
+              <Field label="Tipo de cambio (ARS/USD)">
+                <Input type="number" step="0.01" {...form.register('payment_fx_rate')} />
+              </Field>
+            )}
+            {(paymentCurrency === 'ars' || paymentCurrency === 'mixed') && (
+              <Field label="Monto ARS">
+                <Input type="number" {...form.register('payment_ars')} />
+              </Field>
+            )}
+            {(paymentCurrency === 'usd' || paymentCurrency === 'mixed') && (
+              <Field label="Monto USD">
+                <Input type="number" {...form.register('payment_usd')} />
+              </Field>
+            )}
+            <Field label="Total ARS (calculado)">
+              <Input type="number" value={computedTotalArs ? Number(computedTotalArs).toFixed(0) : ''} readOnly disabled />
+              {paymentNote && <div className="mt-1.5 text-xs text-[#5B677A]">{paymentNote}</div>}
+            </Field>
             {(watchMethod === 'card' || watchMethod === 'mixed') && (
               <div className="grid gap-3 md:grid-cols-3">
                 <Field label="Tarjeta">
@@ -257,9 +316,6 @@ export function SalesNewPage() {
               </div>
             )}
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Total ARS">
-                <Input type="number" {...form.register('total_ars')} />
-              </Field>
               <Field label="Seña (opcional)">
                 <Input type="number" {...form.register('deposit_ars')} />
               </Field>
