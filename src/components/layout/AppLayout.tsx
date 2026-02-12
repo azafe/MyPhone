@@ -1,7 +1,6 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Button } from '../ui/Button'
-import { Input } from '../ui/Input'
 import { cn } from '../../lib/utils'
 import { useState, type ReactNode } from 'react'
 import logo from '../../assets/myphone.jpeg'
@@ -70,7 +69,6 @@ const icons: Record<string, ReactNode> = {
 export function AppLayout() {
   const { profile, signOut } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
-  const navigate = useNavigate()
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] text-[#0F172A]">
@@ -87,16 +85,7 @@ export function AppLayout() {
             <img src={logo} alt="MyPhone" className="h-6 w-auto object-contain" />
           </div>
 
-          <div className="hidden md:flex md:flex-1 md:items-center md:gap-3">
-            <div className="max-w-md flex-1">
-              <Input placeholder="Buscar cliente, equipo o IMEI" />
-            </div>
-          </div>
-
           <div className="ml-auto flex items-center gap-3">
-            <Button size="sm" onClick={() => navigate('/sales/new')}>
-              Nueva venta
-            </Button>
             <div className="hidden items-center gap-3 md:flex">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(11,74,162,0.08)] text-xs font-semibold text-[#0B4AA2]">
                 {(profile?.full_name ?? profile?.email ?? 'U').slice(0, 1).toUpperCase()}
