@@ -17,15 +17,17 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
     item.sale_price_usd ??
     (item.sale_price_ars && item.fx_rate_used ? Number(item.sale_price_ars) / Number(item.fx_rate_used) : null)
   const hasPrice = Boolean(item.sale_price_ars || saleUsd)
-  const marginPct =
-    item.purchase_ars && item.sale_price_ars
-      ? ((item.sale_price_ars - item.purchase_ars) / item.sale_price_ars) * 100
-      : null
   const conditionLabel: Record<string, string> = {
     new: 'Nuevo',
     like_new: 'Como nuevo',
     used: 'Usado',
     outlet: 'Outlet',
+  }
+  const categoryLabel: Record<string, string> = {
+    new: 'Nuevo',
+    promotion: 'Promoción',
+    outlet: 'Outlet',
+    used_premium: 'Usado Premium',
   }
   const statusLabel: Record<string, string> = {
     available: 'Disponible',
@@ -33,14 +35,6 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
     sold: 'Vendido',
   }
   const batteryValue = item.condition === 'new' ? 100 : item.battery_pct
-  const marginTone =
-    marginPct == null
-      ? 'text-[#5B677A]'
-      : marginPct > 15
-      ? 'text-[#166534]'
-      : marginPct >= 8
-      ? 'text-[#92400E]'
-      : 'text-[#991B1B]'
 
   return (
     <button
@@ -53,19 +47,28 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="text-sm font-semibold text-[#0F172A]">
               {item.model ? `${item.brand} ${item.model}` : item.brand}
+              {item.imei ? ` - ${item.imei}` : ''}
             </h4>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#5B677A]">
             {item.storage_gb && (
               <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#5B677A]">
                 {item.storage_gb} GB
               </span>
             )}
-            {item.color && (
-              <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#5B677A]">{item.color}</span>
+            {batteryValue != null && (
+              <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#5B677A]">
+                Batería {batteryValue}%
+              </span>
+            )}
+            {(item.color_other ?? item.color) && (
+              <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#5B677A]">
+                {item.color_other ?? item.color}
+              </span>
             )}
           </div>
-          <div className="mt-1 text-xs text-[#5B677A]">
-            {conditionLabel[item.condition] ?? item.condition}
-            {batteryValue != null && ` · Batería ${batteryValue}%`}
+          <div className="mt-2 text-xs text-[#5B677A]">
+            {categoryLabel[item.category] ?? item.category} · {conditionLabel[item.condition] ?? item.condition}
           </div>
         </div>
         <div className="text-right">
@@ -79,13 +82,6 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
             <Badge label={statusLabel[item.status] ?? item.status} tone={item.status} />
           </div>
         </div>
-      </div>
-
-      <div className="text-xs text-[#5B677A]">
-        {item.purchase_ars ? `Costo ARS $${item.purchase_ars.toLocaleString('es-AR')}` : 'Costo ARS —'}
-        {marginPct != null && (
-          <span className={cn('ml-2', marginTone)}>· Margen {marginPct.toFixed(1)}%</span>
-        )}
       </div>
     </button>
   )
