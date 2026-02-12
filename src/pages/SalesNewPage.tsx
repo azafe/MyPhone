@@ -51,8 +51,8 @@ export function SalesNewPage() {
   })
 
   const { data: stock = [] } = useQuery({
-    queryKey: ['stock', 'available_reserved'],
-    queryFn: () => fetchStock({ statuses: ['available', 'reserved'] }),
+    queryKey: ['stock', 'all'],
+    queryFn: () => fetchStock(),
   })
 
   const { data: rules = [] } = useQuery({
@@ -192,7 +192,8 @@ export function SalesNewPage() {
                 <option value="">Seleccionar equipo</option>
                 {stock.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.brand} {item.model} - ${item.sale_price_ars.toLocaleString('es-AR')}
+                    {item.brand} {item.model}
+                    {item.sale_price_ars ? ` - $${item.sale_price_ars.toLocaleString('es-AR')}` : ''} · {item.status}
                   </option>
                 ))}
               </Select>
