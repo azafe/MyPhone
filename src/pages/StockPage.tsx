@@ -135,7 +135,8 @@ export function StockPage() {
   const purchaseArs = useMemo(() => {
     const [purchaseUsd, fx, purchaseArsValue] = watched
     const computed = Number(purchaseUsd || 0) * Number(fx || 0)
-    return Number(purchaseArsValue ?? computed)
+    const current = Number(purchaseArsValue || 0)
+    return current > 0 ? current : computed
   }, [watched])
 
   const saleArs = useMemo(() => {
@@ -143,7 +144,7 @@ export function StockPage() {
     const fx = Number(watched[1] || 0)
     const saleArsValue = Number(watched[4] || 0)
     const computed = saleUsd * fx
-    return Number(saleArsValue ?? computed)
+    return saleArsValue > 0 ? saleArsValue : computed
   }, [watched])
 
   const marginPct = useMemo(() => {

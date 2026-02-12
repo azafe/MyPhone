@@ -13,7 +13,10 @@ type StockListItemProps = {
 }
 
 export function StockListItem({ item, onClick }: StockListItemProps) {
-  const hasPrice = Boolean(item.sale_price_ars)
+  const saleUsd =
+    item.sale_price_usd ??
+    (item.sale_price_ars && item.fx_rate_used ? Number(item.sale_price_ars) / Number(item.fx_rate_used) : null)
+  const hasPrice = Boolean(item.sale_price_ars || saleUsd)
   const marginPct =
     item.purchase_ars && item.sale_price_ars
       ? ((item.sale_price_ars - item.purchase_ars) / item.sale_price_ars) * 100
@@ -67,9 +70,12 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
         </div>
         <div className="text-right">
           <div className={cn('text-sm font-semibold', hasPrice ? 'text-[#0F172A]' : 'text-[#F59E0B]')}>
-            {hasPrice ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : 'Sin precio'}
+            {hasPrice ? `USD ${Math.round(Number(saleUsd ?? 0)).toLocaleString('es-AR')}` : 'Sin precio'}
           </div>
-          <div className="mt-1">
+          <div className="mt-1 text-xs text-[#5B677A]">
+            {item.sale_price_ars ? `ARS $${item.sale_price_ars.toLocaleString('es-AR')}` : 'ARS —'}
+          </div>
+          <div className="mt-2">
             <Badge label={statusLabel[item.status] ?? item.status} tone={item.status} />
           </div>
         </div>
