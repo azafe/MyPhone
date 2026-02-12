@@ -527,7 +527,12 @@ export function StockPage() {
               </Field>
               <div className="md:col-span-2">
                 <Field label="IMEI (opcional)">
-                  <Input className="h-11" {...form.register('imei')} placeholder="4 dígitos" disabled={imeiLater} />
+                  <Input
+                    className="h-11"
+                    {...form.register('imei')}
+                    placeholder="Últimos 4 dígitos"
+                    disabled={imeiLater}
+                  />
                   {isAppleBrand(brand) && (
                     <div className="mt-2 flex items-center gap-2 text-xs text-[#5B677A]">
                       <input type="checkbox" {...form.register('imei_later')} />
