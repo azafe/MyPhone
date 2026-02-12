@@ -48,7 +48,11 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
     : '—'
   const phone = sale.customer_phone || sale.customer?.phone || '—'
   const equipmentName = [sale.stock_brand, sale.stock_model].filter(Boolean).join(' ')
-  const equipmentMeta = [sale.stock_storage_gb ? `${sale.stock_storage_gb}GB` : null, sale.stock_color]
+  const equipmentMeta = [
+    sale.stock_storage_gb ? `${sale.stock_storage_gb}GB` : null,
+    sale.stock_color,
+    typeof sale.stock_battery_pct === 'number' ? `Batería ${sale.stock_battery_pct}%` : null,
+  ]
     .filter(Boolean)
     .join(' · ')
   const statusLabel = sale.status ? statusLabels[sale.status] ?? sale.status : null
@@ -109,12 +113,11 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
             {equipmentName ? (
               <>
                 <div className="font-medium">{equipmentName}</div>
+                {sale.stock_imei ? <div className="text-[#5B677A]">IMEI {sale.stock_imei}</div> : null}
                 {equipmentMeta ? <div className="text-[#5B677A]">{equipmentMeta}</div> : null}
-                {sale.stock_condition ? <div>Condición: {sale.stock_condition}</div> : null}
-                {typeof sale.stock_battery_pct === 'number' ? <div>Batería: {sale.stock_battery_pct}%</div> : null}
                 {sale.stock_imei ? (
                   <div className="flex items-center gap-2 text-xs text-[#5B677A]">
-                    <span className="font-mono text-[#0F172A]">IMEI {sale.stock_imei}</span>
+                    <span className="font-mono text-[#0F172A]">Copiar IMEI</span>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -143,38 +146,6 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
         </section>
       </div>
 
-      <details className="mt-4 rounded-xl border border-[#E6EBF2] bg-white p-4">
-        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">
-          Ver info técnica
-        </summary>
-        <div className="mt-3 space-y-2 text-xs text-[#5B677A]">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-[#0F172A]">Venta ID: {sale.id}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-xs"
-              onClick={() => navigator.clipboard?.writeText(sale.id)}
-            >
-              Copiar
-            </Button>
-          </div>
-          {sale.stock_item_id ? (
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[#0F172A]">Equipo ID: {sale.stock_item_id}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                onClick={() => navigator.clipboard?.writeText(sale.stock_item_id)}
-              >
-                Copiar
-              </Button>
-            </div>
-          ) : null}
-          {sale.created_at ? <div>created_at: {sale.created_at}</div> : null}
-        </div>
-      </details>
     </Modal>
   )
 }
