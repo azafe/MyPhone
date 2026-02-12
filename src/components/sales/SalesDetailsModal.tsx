@@ -55,6 +55,17 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
   ]
     .filter(Boolean)
     .join(' · ')
+  const equipmentFallbackMeta = [
+    (sale as Sale & { storage_gb?: number | null }).storage_gb
+      ? `${(sale as Sale & { storage_gb?: number | null }).storage_gb}GB`
+      : null,
+    (sale as Sale & { color?: string | null }).color ?? null,
+    typeof (sale as Sale & { battery_pct?: number | null }).battery_pct === 'number'
+      ? `Batería ${(sale as Sale & { battery_pct?: number | null }).battery_pct}%`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   const statusLabel = sale.status ? statusLabels[sale.status] ?? sale.status : null
   const statusStyle = sale.status ? statusStyles[sale.status] ?? 'bg-[rgba(91,103,122,0.16)] text-[#334155]' : ''
 
@@ -114,20 +125,9 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
               <>
                 <div className="font-medium">{equipmentName}</div>
                 {sale.stock_imei ? <div className="text-[#5B677A]">IMEI {sale.stock_imei}</div> : null}
-                {equipmentMeta ? <div className="text-[#5B677A]">{equipmentMeta}</div> : null}
-                {sale.stock_imei ? (
-                  <div className="flex items-center gap-2 text-xs text-[#5B677A]">
-                    <span className="font-mono text-[#0F172A]">Copiar IMEI</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => navigator.clipboard?.writeText(sale.stock_imei ?? '')}
-                    >
-                      Copiar
-                    </Button>
-                  </div>
-                ) : null}
+                {(equipmentMeta || equipmentFallbackMeta) && (
+                  <div className="text-[#5B677A]">{equipmentMeta || equipmentFallbackMeta}</div>
+                )}
               </>
             ) : (
               <div className="text-sm text-[#5B677A]">Equipo: —</div>
