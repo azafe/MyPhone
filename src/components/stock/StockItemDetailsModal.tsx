@@ -21,6 +21,8 @@ type StockItemDetailsModalProps = {
   onReserve: () => void
   onRelease: () => void
   onSell: () => void
+  onMarkSold: () => void
+  onMarkAvailable: () => void
 }
 
 export function StockItemDetailsModal({
@@ -32,6 +34,8 @@ export function StockItemDetailsModal({
   onReserve,
   onRelease,
   onSell,
+  onMarkSold,
+  onMarkAvailable,
 }: StockItemDetailsModalProps) {
   if (!item) return null
 
@@ -213,6 +217,9 @@ export function StockItemDetailsModal({
                 Reservar
               </Button>
               <Button onClick={onSell}>Vender</Button>
+              <Button variant="secondary" onClick={onMarkSold}>
+                Marcar como vendido
+              </Button>
             </>
           )}
           {item.status === 'reserved' && (
@@ -221,7 +228,15 @@ export function StockItemDetailsModal({
                 Liberar
               </Button>
               <Button onClick={onSell}>Vender</Button>
+              <Button variant="secondary" onClick={onMarkSold}>
+                Marcar como vendido
+              </Button>
             </>
+          )}
+          {item.status === 'sold' && (
+            <Button variant="secondary" onClick={onMarkAvailable}>
+              Marcar como disponible
+            </Button>
           )}
         </div>
         <div className="flex flex-wrap gap-2">

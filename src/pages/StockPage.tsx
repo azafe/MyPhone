@@ -624,6 +624,20 @@ export function StockPage() {
           })
         }
         onSell={() => selected && navigate(`/sales/new?stock=${selected.id}`)}
+        onMarkSold={() =>
+          selected &&
+          statusMutation.mutate({
+            id: selected.id,
+            status: 'sold',
+          })
+        }
+        onMarkAvailable={() =>
+          selected &&
+          statusMutation.mutate({
+            id: selected.id,
+            status: 'available',
+          })
+        }
       />
 
       <Modal
