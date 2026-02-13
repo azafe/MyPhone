@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 import { Button } from './Button'
 
@@ -17,6 +17,15 @@ export function Modal({
   children: ReactNode
   actions?: ReactNode
 }) {
+  useEffect(() => {
+    if (!open) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [open])
+
   if (!open) return null
 
   return (
