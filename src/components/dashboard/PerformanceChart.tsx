@@ -154,29 +154,30 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
   const empty = buckets.every((bucket) => bucket.value === 0)
 
   return (
-    <div className="rounded-2xl border border-[#1F2937] bg-[#111827] px-5 py-5 text-white">
+    <div className="rounded-2xl border border-[#E6EBF2] bg-white px-5 py-5 text-[#0F172A] shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-white/60">Rendimiento</p>
-          <h3 className="mt-2 text-2xl font-semibold">{metricLabel}</h3>
-          <p className="mt-2 text-sm text-white/60">
+          <p className="text-xs uppercase tracking-[0.2em] text-[#5B677A]">Rendimiento</p>
+          <h3 className="mt-2 text-2xl font-semibold text-[#0F172A]">{metricLabel}</h3>
+          <p className="mt-2 text-sm text-[#5B677A]">
             {range === '7d' ? 'Últimos 7 días' : range === '30d' ? 'Últimos 30 días' : 'Últimos 12 meses'}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="text-3xl font-semibold">
+          <div className="text-3xl font-semibold text-[#0B4AA2]">
             {metric === 'units' ? formatInt(total) : formatCurrencyUSD(total)}
           </div>
-          <div className="text-xs text-white/50">Comparación: —</div>
+          <div className="text-xs text-[#5B677A]">Comparación: —</div>
         </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <div className="flex gap-2 rounded-full bg-white/10 p-1">
+        <div className="flex gap-2 rounded-xl bg-[#F1F5F9] p-1">
           <Button
             size="sm"
             variant={metric === 'usd' ? 'primary' : 'secondary'}
             onClick={() => setMetric('usd')}
+            className="focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
           >
             Ventas (USD)
           </Button>
@@ -184,15 +185,17 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
             size="sm"
             variant={metric === 'units' ? 'primary' : 'secondary'}
             onClick={() => setMetric('units')}
+            className="focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
           >
             Unidades
           </Button>
         </div>
-        <div className="flex gap-2 rounded-full bg-white/10 p-1">
+        <div className="flex gap-2 rounded-xl bg-[#F1F5F9] p-1">
           <Button
             size="sm"
             variant={range === '7d' ? 'primary' : 'secondary'}
             onClick={() => setRange('7d')}
+            className="focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
           >
             Últimos 7 días
           </Button>
@@ -200,6 +203,7 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
             size="sm"
             variant={range === '30d' ? 'primary' : 'secondary'}
             onClick={() => setRange('30d')}
+            className="focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
           >
             Últimos 30 días
           </Button>
@@ -207,6 +211,7 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
             size="sm"
             variant={range === '12m' ? 'primary' : 'secondary'}
             onClick={() => setRange('12m')}
+            className="focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2"
           >
             Últimos 12 meses
           </Button>
@@ -215,23 +220,24 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
 
       <div className="mt-6" ref={ref}>
         {empty ? (
-          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-white/60">
+          <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-4 py-8 text-center text-sm text-[#5B677A]">
             Sin datos en este período.
           </div>
         ) : (
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={buckets} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(255,255,255,0.1)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 11 }} axisLine={false} />
-                <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={false} />
+                <CartesianGrid stroke="rgba(148,163,184,0.3)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} />
+                <YAxis tick={{ fill: '#94A3B8', fontSize: 11 }} axisLine={false} />
                 <Tooltip
-                  cursor={{ fill: 'rgba(255,255,255,0.08)' }}
+                  cursor={{ fill: 'rgba(11,74,162,0.08)' }}
                   contentStyle={{
-                    background: '#0F172A',
-                    border: '1px solid rgba(255,255,255,0.12)',
+                    background: '#FFFFFF',
+                    border: '1px solid #E6EBF2',
                     borderRadius: 12,
-                    color: '#F8FAFC',
+                    color: '#0F172A',
+                    boxShadow: '0 10px 30px rgba(15,23,42,0.12)',
                   }}
                   formatter={(value) => {
                     const numeric = typeof value === 'number' ? value : 0
@@ -240,14 +246,14 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
                       : [formatCurrencyUSD(numeric), metricLabel]
                   }}
                 />
-                <Bar dataKey="value" fill="#F59E0B" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="value" fill="var(--brand)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         )}
       </div>
 
-      <div className="mt-4 text-xs text-white/50">Actualizado {updatedAt}</div>
+      <div className="mt-4 text-xs text-[#5B677A]">Actualizado {updatedAt}</div>
     </div>
   )
 }
