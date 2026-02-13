@@ -36,6 +36,7 @@ export function DashboardPage() {
   }, [sales, from, to])
 
   const salesMonth = finance?.sales_month ?? 0
+  const salesMonthUsd = finance?.sales_month_usd ?? null
   const marginMonth = finance?.margin_month ?? 0
 
   return (
@@ -57,7 +58,11 @@ export function DashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Equipos vendidos (mes)" value={`${soldThisMonth}`} helper="Cantidad de ventas del mes" />
-        <StatCard label="Total ventas (mes)" value={`$ ${salesMonth.toLocaleString('es-AR')}`} helper="Consolidado por API" />
+        <StatCard
+          label="Total ventas (mes)"
+          value={`$ ${salesMonth.toLocaleString('es-AR')}`}
+          helper={salesMonthUsd != null ? `USD ${salesMonthUsd.toLocaleString('es-AR')}` : 'USD no disponible'}
+        />
         <StatCard label="Margen estimado (mes)" value={`$ ${marginMonth.toLocaleString('es-AR')}`} helper="Ventas - costo estimado" />
       </div>
 
