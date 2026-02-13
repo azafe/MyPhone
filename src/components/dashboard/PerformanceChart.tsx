@@ -124,7 +124,6 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
   }, [])
 
   const showUsd = metric === 'usd' && fxRate > 0
-  const metricLabel = metric === 'units' ? 'Unidades' : showUsd ? 'Ventas (USD)' : 'Ventas (ARS)'
 
   const { buckets, previousBuckets } = useMemo(() => {
     const useWeekly = range === '30d' && width > 0 && width < 360
@@ -239,7 +238,7 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
                     boxShadow: '0 6px 16px rgba(15,23,42,0.12)',
                     padding: '6px 10px',
                   }}
-                  formatter={(value, name, item) => {
+                  formatter={(value, _name, item) => {
                     const numeric = typeof value === 'number' ? value : 0
                     const title = item?.payload?.label ?? ''
                     const formatted = metric === 'units' ? `${formatUnits(numeric)} unidades` : showUsd ? formatUSD(numeric) : formatARS(numeric)
