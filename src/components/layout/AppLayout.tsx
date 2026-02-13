@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Button } from '../ui/Button'
 import { cn } from '../../lib/utils'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import logo from '../../assets/myphone.jpeg'
 
 const navItems = [
@@ -13,6 +13,19 @@ const navItems = [
   { to: '/installments', label: 'Cuotas', icon: 'card' },
   { to: '/warranties', label: 'Garantías', icon: 'shield' },
   { to: '/finance', label: 'Finanzas', icon: 'chart' },
+]
+
+const primaryNav = [
+  { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
+  { to: '/stock', label: 'Stock', icon: 'box' },
+  { to: '/sales', label: 'Ventas', icon: 'sale' },
+  { to: '/tradeins', label: 'Permutas', icon: 'swap' },
+  { to: '/finance', label: 'Finanzas', icon: 'chart' },
+]
+
+const secondaryNav = [
+  { to: '/warranties', label: 'Garantías', icon: 'shield' },
+  { to: '/installments', label: 'Cuotas', icon: 'card' },
 ]
 
 const icons: Record<string, ReactNode> = {
@@ -69,20 +82,34 @@ const icons: Record<string, ReactNode> = {
 export function AppLayout() {
   const { profile, signOut } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDrawerOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] text-[#0F172A]">
-      <header className="sticky top-0 z-40 border-b border-[#E6EBF2] bg-white/80 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-[#E6EBF2] bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-4 px-4">
-          <div className="flex items-center gap-3 md:hidden">
+          <div className="flex flex-1 items-center gap-3 md:hidden">
             <button
               type="button"
-              onClick={() => setCollapsed((prev) => !prev)}
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Abrir menú"
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E6EBF2] text-[#0F172A]"
             >
               <span className="text-lg leading-none">≡</span>
             </button>
-            <img src={logo} alt="MyPhone" className="h-6 w-auto object-contain" />
+            <div className="flex flex-1 justify-center">
+              <img src={logo} alt="MyPhone" className="h-6 w-auto object-contain" />
+            </div>
           </div>
 
           <div className="ml-auto flex items-center gap-3">
@@ -93,6 +120,14 @@ export function AppLayout() {
               <div className="text-right text-xs text-[#5B677A]">
                 <p className="font-medium text-[#0F172A]">{profile?.full_name ?? profile?.email}</p>
                 <p className="uppercase tracking-[0.2em]">{profile?.role ?? '—'}</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={signOut}>
+                Salir
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 md:hidden">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(11,74,162,0.08)] text-xs font-semibold text-[#0B4AA2]">
+                {(profile?.full_name ?? profile?.email ?? 'U').slice(0, 1).toUpperCase()}
               </div>
               <Button variant="secondary" size="sm" onClick={signOut}>
                 Salir
@@ -171,42 +206,110 @@ export function AppLayout() {
           </nav>
         </aside>
 
-        <main className="w-full space-y-6">
+        <main className="w-full space-y-6 pb-[calc(88px+env(safe-area-inset-bottom))] md:pb-0">
           <Outlet />
         </main>
       </div>
 
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Cerrar menú"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setDrawerOpen(false)}
+          />
+          <div className="relative h-full w-[280px] bg-white shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+            <div className="flex h-16 items-center gap-3 border-b border-[#E6EBF2] px-4">
+              <img src={logo} alt="MyPhone" className="h-7 w-auto object-contain" />
+              <span className="text-sm font-semibold text-[#0F172A]">MyPhone</span>
+            </div>
+            <div className="px-3 py-4">
+              <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Secciones</p>
+              <nav className="space-y-1">
+                {primaryNav.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setDrawerOpen(false)}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-[#5B677A] transition duration-200 hover:bg-[#F1F5F9]',
+                        isActive && 'border-l-2 border-[#0B4AA2] bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]'
+                      )
+                    }
+                  >
+                    <span className="text-[#0B4AA2]">{icons[item.icon]}</span>
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
+              </nav>
+            </div>
+            <div className="border-t border-[#E6EBF2] px-3 py-4">
+              <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Opciones</p>
+              <nav className="space-y-1">
+                {secondaryNav.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setDrawerOpen(false)}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-[#5B677A] transition duration-200 hover:bg-[#F1F5F9]',
+                        isActive && 'border-l-2 border-[#0B4AA2] bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]'
+                      )
+                    }
+                  >
+                    <span className="text-[#0B4AA2]">{icons[item.icon]}</span>
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
+                {profile?.role === 'admin' && (
+                  <NavLink
+                    to="/admin/users"
+                    onClick={() => setDrawerOpen(false)}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-[#5B677A] transition duration-200 hover:bg-[#F1F5F9]',
+                        isActive && 'border-l-2 border-[#0B4AA2] bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]'
+                      )
+                    }
+                  >
+                    <span className="text-[#0B4AA2]">{icons.users}</span>
+                    <span>Usuarios</span>
+                  </NavLink>
+                )}
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-[#5B677A] transition duration-200 hover:bg-[#F1F5F9]"
+                >
+                  <span className="text-[#0B4AA2]">{icons.users}</span>
+                  Cerrar sesión
+                </button>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E6EBF2] bg-white/90 backdrop-blur md:hidden">
-        <div className="flex items-center justify-between gap-1 px-3 py-2 text-xs">
-          {navItems.map((item) => (
+        <div className="flex items-center justify-between gap-1 px-3 py-2 text-[11px]">
+          {primaryNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-[#5B677A]',
+                  'flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 font-medium text-[#5B677A] transition',
                   isActive && 'bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]'
                 )
               }
             >
               {icons[item.icon]}
-              {item.label}
+              <span>{item.label}</span>
             </NavLink>
           ))}
-          {profile?.role === 'admin' && (
-            <NavLink
-              to="/admin/users"
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-1 rounded-lg px-2 py-1 font-medium text-[#5B677A]',
-                  isActive && 'bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]'
-                )
-              }
-            >
-              {icons.users}
-              Usuarios
-            </NavLink>
-          )}
         </div>
       </nav>
     </div>
