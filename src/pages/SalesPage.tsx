@@ -14,9 +14,15 @@ export function SalesPage() {
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data = [], isLoading } = useQuery<Sale[]>({
+  const { data = [], isLoading, error } = useQuery<Sale[]>({
     queryKey: ['sales', search],
     queryFn: () => fetchSales(search || undefined),
+    retry: 1,
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : 'No se pudieron cargar las ventas'
+      toast.error(message)
+      console.error('fetchSales error', err)
+    },
   })
   const [selected, setSelected] = useState<(typeof data)[number] | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -58,7 +64,11 @@ export function SalesPage() {
       <Input placeholder="Buscar cliente, teléfono o IMEI" value={search} onChange={(e) => setSearch(e.target.value)} />
 
       <div className="space-y-3">
-        {isLoading ? (
+        {error ? (
+          <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">
+            No se pudieron cargar las ventas. Volvé a intentar.
+          </div>
+        ) : isLoading ? (
           <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Cargando...</div>
         ) : data.length === 0 ? (
           <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">
