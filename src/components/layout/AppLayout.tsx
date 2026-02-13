@@ -3,7 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { Button } from '../ui/Button'
 import { cn } from '../../lib/utils'
 import { useState, type ReactNode } from 'react'
-import logo from '../../assets/myphone.jpeg'
+import logo from '../../assets/myphone.png'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
@@ -83,7 +83,7 @@ export function AppLayout() {
     <div className="min-h-screen bg-[#F6F8FB] text-[#0F172A]">
       <header className="sticky top-0 z-40 border-b border-[#E6EBF2] bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-4 px-4">
-          <div className="flex flex-1 items-center justify-center gap-3 md:hidden">
+          <div className="flex flex-1 items-center justify-start gap-3 md:hidden">
             <img src={logo} alt="MyPhone" className="h-6 w-auto object-contain" />
           </div>
 

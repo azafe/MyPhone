@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Field } from '../components/ui/Field'
-import logo from '../assets/myphone.jpeg'
+import logo from '../assets/myphone.png'
 
 const schema = z.object({
   email: z.string().email(),
