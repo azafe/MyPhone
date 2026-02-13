@@ -25,13 +25,21 @@ export function UserMenu() {
     }
   }, [open])
 
-  const fullName = profile?.full_name?.trim() || user?.user_metadata?.full_name?.trim() || 'Sin nombre'
+  const fullName =
+    profile?.full_name?.trim() ||
+    user?.user_metadata?.full_name?.trim() ||
+    user?.user_metadata?.name?.trim() ||
+    'Sin nombre'
   const email = profile?.email?.trim() || user?.email?.trim() || 'Sin email'
-  const role = profile?.role?.trim() || 'Rol no definido'
+  const role =
+    profile?.role?.trim() ||
+    user?.user_metadata?.role?.trim() ||
+    'Rol no definido'
 
   const initialSource =
     profile?.full_name?.trim() ||
     user?.user_metadata?.full_name?.trim() ||
+    user?.user_metadata?.name?.trim() ||
     profile?.email?.trim() ||
     user?.email?.trim() ||
     'U'
