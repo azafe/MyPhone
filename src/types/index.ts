@@ -99,6 +99,7 @@ export type InstallmentRule = {
 
 export type FinanceSummary = {
   sales_month: number
+  sales_month_usd?: number | null
   margin_month: number
   payment_mix: Array<{ method: string; total: number }>
   open_tradeins: number
