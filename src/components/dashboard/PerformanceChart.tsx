@@ -233,11 +233,12 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
                     borderRadius: 12,
                     color: '#F8FAFC',
                   }}
-                  formatter={(value: number) =>
-                    metric === 'units'
-                      ? [`${formatInt(value)} unidades`, metricLabel]
-                      : [formatCurrencyUSD(value), metricLabel]
-                  }
+                  formatter={(value) => {
+                    const numeric = typeof value === 'number' ? value : 0
+                    return metric === 'units'
+                      ? [`${formatInt(numeric)} unidades`, metricLabel]
+                      : [formatCurrencyUSD(numeric), metricLabel]
+                  }}
                 />
                 <Bar dataKey="value" fill="#F59E0B" radius={[6, 6, 0, 0]} />
               </BarChart>
