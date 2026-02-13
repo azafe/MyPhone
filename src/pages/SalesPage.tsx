@@ -42,7 +42,7 @@ export function SalesPage() {
     },
   })
 
-  const openDetails = (sale: (typeof data)[number]) => {
+  const openDetails = (sale: Sale) => {
     setSelected(sale)
     setDetailsOpen(true)
   }
