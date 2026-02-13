@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Button } from '../ui/Button'
 import { cn } from '../../lib/utils'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import logo from '../../assets/myphone.png'
 
 const navItems = [
@@ -78,6 +78,30 @@ const icons: Record<string, ReactNode> = {
 export function AppLayout() {
   const { profile, signOut } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!menuRef.current) return
+      if (!menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuOpen])
+
+  const initial = (profile?.full_name ?? profile?.email ?? 'U').slice(0, 1).toUpperCase()
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] text-[#0F172A]">
@@ -88,25 +112,35 @@ export function AppLayout() {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <div className="hidden items-center gap-3 md:flex">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[rgba(11,74,162,0.08)] text-xs font-semibold text-[#0B4AA2]">
-                {(profile?.full_name ?? profile?.email ?? 'U').slice(0, 1).toUpperCase()}
-              </div>
-              <div className="text-right text-xs text-[#5B677A]">
-                <p className="font-medium text-[#0F172A]">{profile?.full_name ?? profile?.email}</p>
-                <p className="uppercase tracking-[0.2em]">{profile?.role ?? '—'}</p>
-              </div>
-              <Button variant="secondary" size="sm" onClick={signOut}>
-                Salir
-              </Button>
-            </div>
-            <div className="flex items-center gap-2 md:hidden">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[rgba(11,74,162,0.08)] text-xs font-semibold text-[#0B4AA2]">
-                {(profile?.full_name ?? profile?.email ?? 'U').slice(0, 1).toUpperCase()}
-              </div>
-              <Button variant="secondary" size="sm" onClick={signOut}>
-                Salir
-              </Button>
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((prev) => !prev)}
+                aria-label="Menú de usuario"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0B4AA2] text-xs font-semibold text-white shadow-[0_1px_2px_rgba(16,24,40,0.12)]"
+              >
+                {initial}
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-12 z-50 w-56 rounded-xl border border-[#E6EBF2] bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] animate-in fade-in slide-in-from-top-2">
+                  <div className="space-y-1 text-sm text-[#0F172A]">
+                    <p className="font-semibold">{profile?.full_name ?? 'Usuario'}</p>
+                    <p className="text-xs text-[#5B677A]">{profile?.email ?? '—'}</p>
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-[#5B677A]">{profile?.role ?? '—'}</p>
+                  </div>
+                  <div className="my-2 h-px bg-[#E6EBF2]" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      signOut()
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-[#DC2626] hover:bg-[rgba(220,38,38,0.08)]"
+                  >
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
