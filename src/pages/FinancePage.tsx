@@ -1,39 +1,92 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchFinanceSummary } from '../services/finance'
+import type { FinanceSummary } from '../types'
 import { StatCard } from '../components/ui/StatCard'
 import { Input } from '../components/ui/Input'
+import { Select } from '../components/ui/Select'
 import { Table } from '../components/ui/Table'
 import { Card } from '../components/ui/Card'
+
+type QuickRange = 'today' | 'last7' | 'month'
 
 function toISO(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
-export function FinancePage() {
+function resolveRange(range: QuickRange) {
   const now = new Date()
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
-  const [from, setFrom] = useState(toISO(firstDay))
-  const [to, setTo] = useState(toISO(now))
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  if (range === 'today') {
+    return {
+      from: toISO(today),
+      to: toISO(today),
+    }
+  }
+
+  if (range === 'last7') {
+    const start = new Date(today)
+    start.setDate(today.getDate() - 6)
+    return {
+      from: toISO(start),
+      to: toISO(today),
+    }
+  }
+
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+  return {
+    from: toISO(monthStart),
+    to: toISO(today),
+  }
+}
+
+export function FinancePage() {
+  const defaultRange = resolveRange('month')
+  const [quickRange, setQuickRange] = useState<QuickRange>('month')
+  const [from, setFrom] = useState(defaultRange.from)
+  const [to, setTo] = useState(defaultRange.to)
+
+  const applyQuickRange = (range: QuickRange) => {
+    setQuickRange(range)
+    const next = resolveRange(range)
+    setFrom(next.from)
+    setTo(next.to)
+  }
 
   const { data } = useQuery({
     queryKey: ['finance', from, to],
     queryFn: () => fetchFinanceSummary(from, to),
   })
 
+  const summary = (data ?? {}) as Partial<FinanceSummary>
+
   const mixRows = useMemo(
-    () => (Array.isArray(data?.payment_mix) ? data?.payment_mix : []),
-    [data],
+    () => (Array.isArray(summary.payment_mix) ? summary.payment_mix : []),
+    [summary.payment_mix],
   )
+
+  const totalSales = Number(summary.sales_total ?? summary.sales_month ?? 0)
+  const salesCount = Number(summary.sales_count ?? summary.total_sales_count ?? summary.orders_count ?? 0)
+  const estimatedMargin = Number(summary.margin_total ?? summary.margin_month ?? 0)
+  const avgTicket = Number(summary.ticket_avg ?? summary.avg_ticket ?? 0) || (salesCount > 0 ? totalSales / salesCount : 0)
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Finanzas</h2>
-        <p className="text-sm text-[#5B677A]">Resumen por fechas.</p>
+        <p className="text-sm text-[#5B677A]">Resumen ejecutivo por período.</p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Rango rápido</label>
+          <Select value={quickRange} onChange={(e) => applyQuickRange(e.target.value as QuickRange)}>
+            <option value="today">Hoy</option>
+            <option value="last7">Últimos 7 días</option>
+            <option value="month">Mes actual</option>
+          </Select>
+        </div>
         <div>
           <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Desde</label>
           <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -44,10 +97,11 @@ export function FinancePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Ventas" value={`$ ${data?.sales_month?.toLocaleString('es-AR') ?? 0}`} />
-        <StatCard label="Margen" value={`$ ${data?.margin_month?.toLocaleString('es-AR') ?? 0}`} />
-        <StatCard label="Permutas abiertas" value={`${data?.open_tradeins ?? 0}`} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Ventas totales" value={`$ ${totalSales.toLocaleString('es-AR')}`} />
+        <StatCard label="Cantidad de ventas" value={salesCount.toLocaleString('es-AR')} />
+        <StatCard label="Margen estimado" value={`$ ${estimatedMargin.toLocaleString('es-AR')}`} />
+        <StatCard label="Ticket promedio" value={`$ ${Math.round(avgTicket).toLocaleString('es-AR')}`} />
       </div>
 
       <Card className="p-5">

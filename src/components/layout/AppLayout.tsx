@@ -16,11 +16,10 @@ const navItems = [
 ]
 
 const primaryNav = [
-  { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { to: '/stock', label: 'Stock', icon: 'box' },
+  { to: '/sales/new', label: 'Nueva venta', icon: 'plus' },
   { to: '/sales', label: 'Ventas', icon: 'sale' },
-  { to: '/installments', label: 'Cuotas', icon: 'card' },
-  { to: '/warranties', label: 'Garantías', icon: 'shield' },
+  { to: '/finance', label: 'Finanzas', icon: 'chart' },
 ]
 
 
@@ -65,6 +64,12 @@ const icons: Record<string, ReactNode> = {
       <path d="M6 16V8" />
       <path d="M12 16V5" />
       <path d="M18 16v-6" />
+    </svg>
+  ),
+  plus: (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
     </svg>
   ),
   users: (

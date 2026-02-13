@@ -37,8 +37,16 @@ export async function fetchSales(query?: string) {
 
 export type CreateSalePayload = {
   sale_date: string
-  customer: { name: string; phone: string }
-  payment: {
+  customer?: { name: string; phone: string }
+  customer_id?: string
+  payment_method?: string
+  card_brand?: string | null
+  installments?: number | null
+  surcharge_pct?: number | null
+  deposit_ars?: number | null
+  total_ars: number
+  items: Array<{ stock_item_id: string; qty: number; sale_price_ars: number }>
+  payment?: {
     method: string
     card_brand?: string | null
     installments?: number | null
@@ -46,7 +54,6 @@ export type CreateSalePayload = {
     deposit_ars?: number | null
     total_ars: number
   }
-  items: Array<{ stock_item_id: string; sale_price_ars: number }>
   trade_in?: {
     enabled: boolean
     device: {

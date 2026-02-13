@@ -101,6 +101,13 @@ export type FinanceSummary = {
   sales_month: number
   sales_month_usd?: number | null
   margin_month: number
+  sales_total?: number
+  margin_total?: number
+  sales_count?: number
+  total_sales_count?: number
+  orders_count?: number
+  ticket_avg?: number
+  avg_ticket?: number
   payment_mix: Array<{ method: string; total: number }>
   open_tradeins: number
 }

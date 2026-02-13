@@ -14,53 +14,40 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Card } from '../components/ui/Card'
 
-const schema = z.object({
-  stock_item_id: z.string().min(1),
-  customer_name: z.string().min(1),
-  customer_phone: z.string().min(1),
-  method: z.enum(['cash', 'transfer', 'card', 'mixed', 'trade_in']),
-  payment_currency: z.enum(['ars', 'usd', 'mixed']).default('ars'),
-  payment_fx_rate: z.coerce.number().optional().nullable(),
-  payment_ars: z.coerce.number().optional().nullable(),
-  payment_usd: z.coerce.number().optional().nullable(),
-  card_brand: z.string().optional().nullable(),
-  installments: z.coerce.number().optional().nullable(),
-  surcharge_pct: z.coerce.number().optional().nullable(),
-  total_ars: z.coerce.number().min(0.01),
-  deposit_ars: z.coerce.number().optional().nullable(),
-  trade_in_enabled: z.boolean().default(false),
-  trade_brand: z.string().optional(),
-  trade_model: z.string().optional(),
-  trade_storage: z.string().optional(),
-  trade_color: z.string().optional(),
-  trade_condition: z.string().optional(),
-  trade_imei: z.string().optional(),
-  trade_value_usd: z.coerce.number().optional().nullable(),
-  trade_fx_rate: z.coerce.number().optional().nullable(),
-  trade_value_ars: z.coerce.number().optional().nullable(),
+const saleItemSchema = z.object({
+  stock_item_id: z.string().min(1, 'Seleccioná un equipo'),
+  qty: z.coerce.number().int().min(1, 'La cantidad mínima es 1'),
+  sale_price_ars: z.coerce.number().min(0.01, 'Ingresá un precio mayor a 0'),
 })
+
+const schema = z
+  .object({
+    customer_name: z.string().min(1, 'Ingresá el nombre del cliente'),
+    customer_phone: z.string().min(1, 'Ingresá el teléfono del cliente'),
+    method: z.enum(['cash', 'transfer', 'card', 'mixed', 'trade_in']),
+    card_brand: z.string().optional().nullable(),
+    installments: z.coerce.number().optional().nullable(),
+    surcharge_pct: z.coerce.number().optional().nullable(),
+    deposit_ars: z.coerce.number().optional().nullable(),
+    trade_in_enabled: z.boolean().default(false),
+    trade_brand: z.string().optional(),
+    trade_model: z.string().optional(),
+    trade_storage: z.string().optional(),
+    trade_color: z.string().optional(),
+    trade_condition: z.string().optional(),
+    trade_imei: z.string().optional(),
+    trade_value_usd: z.coerce.number().optional().nullable(),
+    trade_fx_rate: z.coerce.number().optional().nullable(),
+    trade_value_ars: z.coerce.number().optional().nullable(),
+    items: z.array(saleItemSchema).min(1, 'Agregá al menos un ítem'),
+  })
   .superRefine((values, ctx) => {
-    if (values.payment_currency === 'ars' && (!values.payment_ars || values.payment_ars <= 0)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá un monto en ARS', path: ['payment_ars'] })
-    }
-    if (values.payment_currency === 'usd') {
-      if (!values.payment_usd || values.payment_usd <= 0) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá un monto en USD', path: ['payment_usd'] })
-      }
-      if (!values.payment_fx_rate || values.payment_fx_rate <= 0) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá el tipo de cambio', path: ['payment_fx_rate'] })
-      }
-    }
-    if (values.payment_currency === 'mixed') {
-      if (!values.payment_ars || values.payment_ars <= 0) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá un monto en ARS', path: ['payment_ars'] })
-      }
-      if (!values.payment_usd || values.payment_usd <= 0) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá un monto en USD', path: ['payment_usd'] })
-      }
-      if (!values.payment_fx_rate || values.payment_fx_rate <= 0) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá el tipo de cambio', path: ['payment_fx_rate'] })
-      }
+    if ((values.method === 'card' || values.method === 'mixed') && !values.card_brand?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresá la tarjeta',
+        path: ['card_brand'],
+      })
     }
   })
 
@@ -91,44 +78,27 @@ export function SalesNewPage() {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      stock_item_id: preselected,
       method: 'cash',
-      payment_currency: 'ars',
-      total_ars: 0,
       trade_in_enabled: false,
+      items: [{ stock_item_id: preselected, qty: 1, sale_price_ars: 0 }],
     },
   })
 
+  const items = form.watch('items')
   const watchMethod = form.watch('method')
-  const paymentCurrency = form.watch('payment_currency')
-  const paymentFx = form.watch('payment_fx_rate') ?? 0
-  const paymentArs = form.watch('payment_ars') ?? 0
-  const paymentUsd = form.watch('payment_usd') ?? 0
-  const selectedStockId = form.watch('stock_item_id')
   const tradeEnabled = form.watch('trade_in_enabled')
   const tradeUsd = form.watch('trade_value_usd') ?? 0
   const tradeFx = form.watch('trade_fx_rate') ?? 0
   const cardBrand = form.watch('card_brand')
   const installments = form.watch('installments')
 
+  const stockById = useMemo(() => {
+    const map = new Map<string, (typeof stock)[number]>()
+    stock.forEach((item) => map.set(item.id, item))
+    return map
+  }, [stock])
+
   const tradeArs = useMemo(() => Number(tradeUsd) * Number(tradeFx), [tradeUsd, tradeFx])
-
-  const computedTotalArs = useMemo(() => {
-    const fx = Number(paymentFx || 0)
-    if (paymentCurrency === 'ars') return Number(paymentArs || 0)
-    if (paymentCurrency === 'usd') return Number(paymentUsd || 0) * fx
-    return Number(paymentArs || 0) + Number(paymentUsd || 0) * fx
-  }, [paymentCurrency, paymentArs, paymentUsd, paymentFx])
-
-  const paymentNote = useMemo(() => {
-    if (paymentCurrency === 'usd') return 'Se convierte a ARS con el TC para guardar la venta.'
-    if (paymentCurrency === 'mixed') return 'Se suma ARS + USD × TC para el total.'
-    return null
-  }, [paymentCurrency])
-
-  useEffect(() => {
-    form.setValue('total_ars', computedTotalArs ? Number(computedTotalArs) : 0, { shouldValidate: true })
-  }, [computedTotalArs, form])
 
   const surcharge = useMemo(() => {
     if (!cardBrand || !installments) return 0
@@ -136,10 +106,30 @@ export function SalesNewPage() {
     return rule?.surcharge_pct ?? 0
   }, [rules, cardBrand, installments])
 
-  const selectedStock = useMemo(
-    () => stock.find((item) => item.id === selectedStockId) ?? null,
-    [stock, selectedStockId],
+  const lineSubtotals = useMemo(
+    () =>
+      items.map((item) => {
+        const qty = Number(item?.qty || 0)
+        const price = Number(item?.sale_price_ars || 0)
+        return qty > 0 && price > 0 ? qty * price : 0
+      }),
+    [items],
   )
+
+  const totalArs = useMemo(() => lineSubtotals.reduce((acc, subtotal) => acc + subtotal, 0), [lineSubtotals])
+
+  useEffect(() => {
+    if (!preselected) return
+    const current = form.getValues('items.0.stock_item_id')
+    if (current) return
+    const selectedStock = stock.find((item) => item.id === preselected)
+    if (!selectedStock) return
+    form.setValue('items.0.stock_item_id', preselected, { shouldValidate: true, shouldDirty: true })
+    form.setValue('items.0.sale_price_ars', Number(selectedStock.sale_price_ars || 0), {
+      shouldValidate: true,
+      shouldDirty: true,
+    })
+  }, [preselected, stock, form])
 
   const mutation = useMutation({
     mutationFn: createSale,
@@ -154,33 +144,95 @@ export function SalesNewPage() {
     onError: () => toast.error('No se pudo guardar la venta'),
   })
 
-  const onSubmit = (values: FormValues) => {
-    if (!computedTotalArs || computedTotalArs <= 0) {
-      toast.error('Ingresá un monto válido para la venta')
+  const addItem = () => {
+    form.setValue(
+      'items',
+      [...items, { stock_item_id: '', qty: 1, sale_price_ars: 0 }],
+      { shouldDirty: true, shouldValidate: true },
+    )
+  }
+
+  const removeItem = (index: number) => {
+    if (items.length === 1) {
+      toast.error('La venta debe tener al menos un ítem')
       return
     }
+    form.setValue(
+      'items',
+      items.filter((_, currentIndex) => currentIndex !== index),
+      { shouldDirty: true, shouldValidate: true },
+    )
+  }
+
+  const updateItem = (index: number, next: Partial<FormValues['items'][number]>) => {
+    const nextItems = [...items]
+    nextItems[index] = { ...nextItems[index], ...next }
+    form.setValue('items', nextItems, { shouldDirty: true, shouldValidate: true })
+  }
+
+  const handleSelectItem = (index: number, stockItemId: string) => {
+    const duplicateIndex = items.findIndex(
+      (item, currentIndex) => currentIndex !== index && item.stock_item_id === stockItemId,
+    )
+
+    if (stockItemId && duplicateIndex >= 0) {
+      const currentQty = Number(items[index]?.qty || 1)
+      const duplicateQty = Number(items[duplicateIndex]?.qty || 1)
+      const nextItems = items
+        .map((item, currentIndex) =>
+          currentIndex === duplicateIndex ? { ...item, qty: duplicateQty + currentQty } : item,
+        )
+        .filter((_, currentIndex) => currentIndex !== index)
+
+      form.setValue('items', nextItems, { shouldDirty: true, shouldValidate: true })
+      toast('El equipo ya estaba en el carrito. Sumamos la cantidad.', { icon: 'ℹ️' })
+      return
+    }
+
+    const selectedStock = stockById.get(stockItemId)
+    updateItem(index, {
+      stock_item_id: stockItemId,
+      sale_price_ars: Number(selectedStock?.sale_price_ars || 0),
+    })
+  }
+
+  const onSubmit = (values: FormValues) => {
     const parsed = schema.parse(values)
-    const totalArs = Number(computedTotalArs)
-    const payload = {
+
+    const itemsPayload = parsed.items.map((item) => ({
+      stock_item_id: item.stock_item_id,
+      qty: Number(item.qty),
+      sale_price_ars: Number(item.sale_price_ars),
+    }))
+
+    const calculatedTotal = itemsPayload.reduce((acc, item) => acc + item.qty * item.sale_price_ars, 0)
+
+    if (calculatedTotal <= 0) {
+      toast.error('El total debe ser mayor a cero')
+      return
+    }
+
+    mutation.mutate({
       sale_date: new Date().toISOString(),
       customer: {
         name: parsed.customer_name,
         phone: parsed.customer_phone,
       },
+      payment_method: parsed.method,
+      card_brand: parsed.card_brand || null,
+      installments: parsed.installments ?? null,
+      surcharge_pct: parsed.surcharge_pct ?? surcharge,
+      deposit_ars: parsed.deposit_ars ?? null,
+      total_ars: calculatedTotal,
+      items: itemsPayload,
       payment: {
         method: parsed.method,
-        card_brand: parsed.card_brand,
-        installments: parsed.installments,
+        card_brand: parsed.card_brand || null,
+        installments: parsed.installments ?? null,
         surcharge_pct: parsed.surcharge_pct ?? surcharge,
-        total_ars: totalArs,
-        deposit_ars: parsed.deposit_ars,
+        total_ars: calculatedTotal,
+        deposit_ars: parsed.deposit_ars ?? null,
       },
-      items: [
-        {
-          stock_item_id: parsed.stock_item_id,
-          sale_price_ars: totalArs,
-        },
-      ],
       trade_in: parsed.trade_in_enabled
         ? {
             enabled: true,
@@ -196,46 +248,14 @@ export function SalesNewPage() {
             fx_rate_used: parsed.trade_fx_rate ?? 0,
           }
         : undefined,
-    }
-
-    mutation.mutate(payload)
-  }
-
-  const handleCreateSaleExample = async () => {
-    const examplePayload = {
-      sale_date: new Date().toISOString(),
-      customer: { name: 'Cliente Demo', phone: '11 1234-5678' },
-      payment: {
-        method: 'cash',
-        total_ars: 500000,
-        deposit_ars: 0,
-      },
-      items: [{ stock_item_id: form.getValues('stock_item_id') || '', sale_price_ars: 500000 }],
-    }
-
-    if (!examplePayload.items[0].stock_item_id) {
-      toast.error('Seleccioná un equipo para el ejemplo')
-      return
-    }
-
-    try {
-      await createSale(examplePayload)
-      toast.success('Venta creada (ejemplo)')
-      queryClient.invalidateQueries({ queryKey: ['sales'] })
-    } catch (error) {
-      const err = error as Error & { code?: string; details?: unknown }
-      toast.error(err.message || 'Error al crear venta')
-      if (err.code) {
-        console.error('createSale error', err.code, err.details)
-      }
-    }
+    })
   }
 
   return (
     <div className="space-y-6 pb-24">
       <div>
         <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Nueva venta</h2>
-        <p className="text-sm text-[#5B677A]">Cargá los datos en secciones rápidas.</p>
+        <p className="text-sm text-[#5B677A]">Cargá cliente, ítems y pago en pasos simples.</p>
       </div>
 
       <Card className="p-5">
@@ -244,36 +264,99 @@ export function SalesNewPage() {
           className="flex w-full items-center justify-between text-left"
           onClick={() => setOpenSections((prev) => ({ ...prev, stock: !prev.stock }))}
         >
-          <h3 className="text-lg font-semibold text-[#0F172A]">1. Equipo</h3>
+          <h3 className="text-lg font-semibold text-[#0F172A]">1. Ítems de venta</h3>
           <span className="text-xs text-[#5B677A]">{openSections.stock ? 'Ocultar' : 'Mostrar'}</span>
         </button>
+
         {openSections.stock && (
-          <div className="mt-4">
-            <Field label="Equipo disponible">
-              <Select {...form.register('stock_item_id')}>
-                <option value="">Seleccionar equipo</option>
-                {stock.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.brand} {item.model} - {item.imei ?? 'Sin IMEI'} -{' '}
-                    {item.sale_price_usd ? `USD ${Math.round(item.sale_price_usd).toLocaleString('es-AR')}` : 'USD —'} -{' '}
-                    {item.sale_price_ars ? `$${item.sale_price_ars.toLocaleString('es-AR')}` : '$ —'}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            {selectedStock && (
-              <div className="mt-3 rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">
-                <div className="font-medium">
-                  {selectedStock.brand} {selectedStock.model} - {selectedStock.imei ?? 'Sin IMEI'}
+          <div className="mt-4 space-y-3">
+            {items.map((item, index) => {
+              const selectedStock = stockById.get(item.stock_item_id)
+              const itemErrors = form.formState.errors.items?.[index]
+
+              return (
+                <div key={`${item.stock_item_id || 'new'}-${index}`} className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3">
+                  <div className="grid gap-3 md:grid-cols-[2fr_100px_160px_120px_auto] md:items-end">
+                    <Field label={`Equipo #${index + 1}`}>
+                      <Select
+                        value={item.stock_item_id}
+                        onChange={(event) => handleSelectItem(index, event.target.value)}
+                      >
+                        <option value="">Seleccionar equipo</option>
+                        {stock.map((stockItem) => (
+                          <option key={stockItem.id} value={stockItem.id}>
+                            {stockItem.brand} {stockItem.model} - {stockItem.imei ?? 'Sin IMEI'} - ${' '}
+                            {stockItem.sale_price_ars?.toLocaleString('es-AR') ?? '—'}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+
+                    <Field label="Qty">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={Number(item.qty ?? 0)}
+                        onChange={(event) => updateItem(index, { qty: Number(event.target.value) || 0 })}
+                      />
+                    </Field>
+
+                    <Field label="Precio ARS">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={Number(item.sale_price_ars ?? 0)}
+                        onChange={(event) => updateItem(index, { sale_price_ars: Number(event.target.value) || 0 })}
+                      />
+                    </Field>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Subtotal</p>
+                      <p className="mt-2 text-sm font-semibold text-[#0F172A]">
+                        ${lineSubtotals[index]?.toLocaleString('es-AR') ?? '0'}
+                      </p>
+                    </div>
+
+                    <Button
+                      variant="secondary"
+                      type="button"
+                      onClick={() => removeItem(index)}
+                      disabled={items.length === 1}
+                    >
+                      Quitar
+                    </Button>
+                  </div>
+
+                  {selectedStock && (
+                    <p className="mt-2 text-xs text-[#5B677A]">
+                      {selectedStock.brand} {selectedStock.model} · IMEI {selectedStock.imei ?? '—'}
+                    </p>
+                  )}
+
+                  {(itemErrors?.stock_item_id || itemErrors?.qty || itemErrors?.sale_price_ars) && (
+                    <div className="mt-2 space-y-1 text-xs text-[#DC2626]">
+                      {itemErrors.stock_item_id?.message && <p>{itemErrors.stock_item_id.message}</p>}
+                      {itemErrors.qty?.message && <p>{itemErrors.qty.message}</p>}
+                      {itemErrors.sale_price_ars?.message && <p>{itemErrors.sale_price_ars.message}</p>}
+                    </div>
+                  )}
                 </div>
-                <div className="mt-1 text-xs text-[#5B677A]">
-                  {selectedStock.sale_price_usd
-                    ? `USD ${Math.round(selectedStock.sale_price_usd).toLocaleString('es-AR')}`
-                    : 'USD —'}{' '}
-                  · {selectedStock.sale_price_ars ? `$${selectedStock.sale_price_ars.toLocaleString('es-AR')}` : '$ —'}
-                </div>
-              </div>
+              )
+            })}
+
+            {form.formState.errors.items?.message && (
+              <p className="text-xs text-[#DC2626]">{form.formState.errors.items.message}</p>
             )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E6EBF2] bg-white px-4 py-3">
+              <Button type="button" variant="secondary" onClick={addItem}>
+                Agregar ítem
+              </Button>
+              <div className="text-right">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Total general</p>
+                <p className="mt-1 text-lg font-semibold text-[#0F172A]">${totalArs.toLocaleString('es-AR')}</p>
+              </div>
+            </div>
           </div>
         )}
       </Card>
@@ -295,6 +378,12 @@ export function SalesNewPage() {
             <Field label="Teléfono">
               <Input {...form.register('customer_phone')} placeholder="11 1234-5678" />
             </Field>
+            {(form.formState.errors.customer_name || form.formState.errors.customer_phone) && (
+              <div className="md:col-span-2 space-y-1 text-xs text-[#DC2626]">
+                {form.formState.errors.customer_name?.message && <p>{form.formState.errors.customer_name.message}</p>}
+                {form.formState.errors.customer_phone?.message && <p>{form.formState.errors.customer_phone.message}</p>}
+              </div>
+            )}
           </div>
         )}
       </Card>
@@ -310,55 +399,6 @@ export function SalesNewPage() {
         </button>
         {openSections.payment && (
           <div className="mt-4 space-y-3">
-            {selectedStock && (
-              <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">
-                  Precio publicado
-                </div>
-                <div className="mt-2 text-sm font-medium">
-                  {selectedStock.sale_price_usd
-                    ? `USD ${Math.round(selectedStock.sale_price_usd).toLocaleString('es-AR')}`
-                    : 'USD —'}{' '}
-                  · {selectedStock.sale_price_ars ? `$${selectedStock.sale_price_ars.toLocaleString('es-AR')}` : '$ —'}
-                </div>
-              </div>
-            )}
-
-            <Field label="Moneda de cobro">
-              <Select {...form.register('payment_currency')}>
-                <option value="ars">ARS</option>
-                <option value="usd">USD</option>
-                <option value="mixed">Combinado</option>
-              </Select>
-            </Field>
-            {(paymentCurrency === 'usd' || paymentCurrency === 'mixed') && (
-              <Field label="Tipo de cambio (ARS/USD)">
-                <Input type="number" step="0.01" {...form.register('payment_fx_rate')} />
-              </Field>
-            )}
-            {(paymentCurrency === 'ars' || paymentCurrency === 'mixed') && (
-              <Field label="Monto ARS recibido">
-                <Input type="number" {...form.register('payment_ars')} />
-              </Field>
-            )}
-            {(paymentCurrency === 'usd' || paymentCurrency === 'mixed') && (
-              <Field label="Monto USD recibido">
-                <Input type="number" {...form.register('payment_usd')} />
-              </Field>
-            )}
-            <Field label="Total ARS (calculado)">
-              <Input type="number" value={computedTotalArs ? Number(computedTotalArs).toFixed(0) : ''} readOnly disabled />
-              {paymentNote && <div className="mt-1.5 text-xs text-[#5B677A]">{paymentNote}</div>}
-            </Field>
-            {selectedStock?.sale_price_ars ? (
-              <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-2 text-xs text-[#5B677A]">
-                Diferencia vs precio publicado:{' '}
-                <span className="font-semibold text-[#0F172A]">
-                  {(computedTotalArs - selectedStock.sale_price_ars).toLocaleString('es-AR')}
-                </span>
-              </div>
-            ) : null}
-
             <Field label="Método de pago">
               <Select {...form.register('method')}>
                 <option value="cash">Efectivo</option>
@@ -368,6 +408,7 @@ export function SalesNewPage() {
                 <option value="trade_in">Permuta</option>
               </Select>
             </Field>
+
             {(watchMethod === 'card' || watchMethod === 'mixed') && (
               <div className="grid gap-3 md:grid-cols-3">
                 <Field label="Tarjeta">
@@ -381,11 +422,19 @@ export function SalesNewPage() {
                 </Field>
               </div>
             )}
+
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="Seña (opcional)">
                 <Input type="number" {...form.register('deposit_ars')} />
               </Field>
+              <Field label="Total ARS (calculado)">
+                <Input type="number" value={totalArs ? Number(totalArs).toFixed(0) : ''} readOnly disabled />
+              </Field>
             </div>
+
+            {form.formState.errors.card_brand?.message && (
+              <p className="text-xs text-[#DC2626]">{form.formState.errors.card_brand.message}</p>
+            )}
           </div>
         )}
       </Card>
@@ -451,14 +500,9 @@ export function SalesNewPage() {
           <Button variant="secondary" onClick={() => navigate('/sales')}>
             Cancelar
           </Button>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={handleCreateSaleExample}>
-              Crear Venta
-            </Button>
-            <Button onClick={form.handleSubmit(onSubmit)} disabled={mutation.isPending}>
-              {mutation.isPending ? 'Guardando...' : 'Guardar venta'}
-            </Button>
-          </div>
+          <Button onClick={form.handleSubmit(onSubmit)} disabled={mutation.isPending}>
+            {mutation.isPending ? 'Guardando...' : 'Guardar venta'}
+          </Button>
         </div>
       </div>
     </div>
