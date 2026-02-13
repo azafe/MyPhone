@@ -5,6 +5,7 @@ import { fetchSales } from '../../services/sales'
 import { fetchStock } from '../../services/stock'
 import type { Sale, StockItem } from '../../types'
 import { formatARS, formatPercent, formatUnits } from './formatters'
+import type { KpiItem } from './KpiGrid'
 
 const currency = new Intl.NumberFormat('es-AR')
 
@@ -88,7 +89,7 @@ export function useDashboardKpis() {
   const cuentasPorCobrar = { count: 0, total: 0 }
   const reservedCount = stock.filter((item: StockItem) => item.status === 'reserved').length
 
-  const items = useMemo(
+  const items = useMemo<KpiItem[]>(
     () => [
       {
         key: 'sales-today',
