@@ -69,16 +69,8 @@ export type CreateSalePayload = {
   }
 }
 
-type CreateSaleOptions = {
-  idempotencyKey?: string
-}
-
-export async function createSale(payload: CreateSalePayload, options: CreateSaleOptions = {}) {
-  return apiClient('/api/sales', {
-    method: 'POST',
-    body: payload,
-    headers: options.idempotencyKey ? { 'X-Idempotency-Key': options.idempotencyKey } : undefined,
-  })
+export async function createSale(payload: CreateSalePayload) {
+  return apiClient('/api/sales', { method: 'POST', body: payload })
 }
 
 export async function deleteSale(id: string) {

@@ -14,16 +14,8 @@ import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Card } from '../components/ui/Card'
 
-function createIdempotencyKey() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
 const saleItemSchema = z.object({
   stock_item_id: z.string().min(1, 'Seleccioná un equipo'),
-  qty: z.coerce.number().int().min(1, 'La cantidad mínima es 1'),
   sale_price_ars: z.coerce.number().min(0.01, 'Ingresá un precio mayor a 0'),
 })
 
@@ -56,6 +48,20 @@ const schema = z
         path: ['card_brand'],
       })
     }
+
+    const seen = new Set<string>()
+    values.items.forEach((item, index) => {
+      if (!item.stock_item_id) return
+      if (seen.has(item.stock_item_id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Este equipo ya está agregado',
+          path: ['items', index, 'stock_item_id'],
+        })
+        return
+      }
+      seen.add(item.stock_item_id)
+    })
   })
 
 type FormValues = z.input<typeof schema>
@@ -87,7 +93,7 @@ export function SalesNewPage() {
     defaultValues: {
       method: 'cash',
       trade_in_enabled: false,
-      items: [{ stock_item_id: preselected, qty: 1, sale_price_ars: 0 }],
+      items: [{ stock_item_id: preselected, sale_price_ars: 0 }],
     },
   })
 
@@ -116,9 +122,8 @@ export function SalesNewPage() {
   const lineSubtotals = useMemo(
     () =>
       items.map((item) => {
-        const qty = Number(item?.qty || 0)
         const price = Number(item?.sale_price_ars || 0)
-        return qty > 0 && price > 0 ? qty * price : 0
+        return price > 0 ? price : 0
       }),
     [items],
   )
@@ -139,8 +144,7 @@ export function SalesNewPage() {
   }, [preselected, stock, form])
 
   const mutation = useMutation({
-    mutationFn: ({ payload, idempotencyKey }: { payload: CreateSalePayload; idempotencyKey: string }) =>
-      createSale(payload, { idempotencyKey }),
+    mutationFn: createSale,
     onSuccess: () => {
       toast.success('Venta registrada')
       queryClient.invalidateQueries({ queryKey: ['stock'] })
@@ -155,7 +159,7 @@ export function SalesNewPage() {
   const addItem = () => {
     form.setValue(
       'items',
-      [...items, { stock_item_id: '', qty: 1, sale_price_ars: 0 }],
+      [...items, { stock_item_id: '', sale_price_ars: 0 }],
       { shouldDirty: true, shouldValidate: true },
     )
   }
@@ -184,16 +188,7 @@ export function SalesNewPage() {
     )
 
     if (stockItemId && duplicateIndex >= 0) {
-      const currentQty = Number(items[index]?.qty || 1)
-      const duplicateQty = Number(items[duplicateIndex]?.qty || 1)
-      const nextItems = items
-        .map((item, currentIndex) =>
-          currentIndex === duplicateIndex ? { ...item, qty: duplicateQty + currentQty } : item,
-        )
-        .filter((_, currentIndex) => currentIndex !== index)
-
-      form.setValue('items', nextItems, { shouldDirty: true, shouldValidate: true })
-      toast('El equipo ya estaba en el carrito. Sumamos la cantidad.', { icon: 'ℹ️' })
+      toast.error('Ese equipo ya está agregado')
       return
     }
 
@@ -211,11 +206,11 @@ export function SalesNewPage() {
 
     const itemsPayload = parsed.items.map((item) => ({
       stock_item_id: item.stock_item_id,
-      qty: Number(item.qty),
+      qty: 1,
       sale_price_ars: Number(item.sale_price_ars),
     }))
 
-    const calculatedTotal = itemsPayload.reduce((acc, item) => acc + item.qty * item.sale_price_ars, 0)
+    const calculatedTotal = itemsPayload.reduce((acc, item) => acc + item.sale_price_ars, 0)
 
     if (calculatedTotal <= 0) {
       toast.error('El total debe ser mayor a cero')
@@ -260,10 +255,7 @@ export function SalesNewPage() {
         : undefined,
     }
 
-    mutation.mutate({
-      payload,
-      idempotencyKey: createIdempotencyKey(),
-    })
+    mutation.mutate(payload)
   }
 
   return (
@@ -291,7 +283,7 @@ export function SalesNewPage() {
 
               return (
                 <div key={`${item.stock_item_id || 'new'}-${index}`} className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3">
-                  <div className="grid gap-3 md:grid-cols-[2fr_100px_160px_120px_auto] md:items-end">
+                  <div className="grid gap-3 md:grid-cols-[2fr_180px_120px_auto] md:items-end">
                     <Field label={`Equipo #${index + 1}`}>
                       <Select
                         value={item.stock_item_id}
@@ -305,15 +297,6 @@ export function SalesNewPage() {
                           </option>
                         ))}
                       </Select>
-                    </Field>
-
-                    <Field label="Qty">
-                      <Input
-                        type="number"
-                        min={1}
-                        value={Number(item.qty ?? 0)}
-                        onChange={(event) => updateItem(index, { qty: Number(event.target.value) || 0 })}
-                      />
                     </Field>
 
                     <Field label="Precio ARS">
@@ -348,10 +331,9 @@ export function SalesNewPage() {
                     </p>
                   )}
 
-                  {(itemErrors?.stock_item_id || itemErrors?.qty || itemErrors?.sale_price_ars) && (
+                  {(itemErrors?.stock_item_id || itemErrors?.sale_price_ars) && (
                     <div className="mt-2 space-y-1 text-xs text-[#DC2626]">
                       {itemErrors.stock_item_id?.message && <p>{itemErrors.stock_item_id.message}</p>}
-                      {itemErrors.qty?.message && <p>{itemErrors.qty.message}</p>}
                       {itemErrors.sale_price_ars?.message && <p>{itemErrors.sale_price_ars.message}</p>}
                     </div>
                   )}

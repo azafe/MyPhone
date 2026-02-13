@@ -1,9 +1,8 @@
 import { supabase } from './supabase'
 
-const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
-const isLocalHost =
-  typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-const apiBaseUrl = import.meta.env.PROD && !isLocalHost ? '' : configuredBaseUrl
+// Frontend always calls same-origin /api to avoid browser CORS issues.
+// Netlify handles prod proxy and Vite handles dev proxy.
+const apiBaseUrl = ''
 
 type ApiOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
