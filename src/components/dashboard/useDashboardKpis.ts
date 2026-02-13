@@ -61,9 +61,21 @@ export function useDashboardKpis() {
     return date >= monthStart
   })
 
+  const stockCostById = useMemo(() => {
+    const map = new Map<string, number>()
+    stock.forEach((item: StockItem) => {
+      if (item.id && typeof item.purchase_ars === 'number') {
+        map.set(item.id, Number(item.purchase_ars || 0))
+      }
+    })
+    return map
+  }, [stock])
+
   const marginMonth = monthlySales.reduce((acc, sale) => {
     const total = Number(sale.total_ars || 0)
-    const cost = Number((sale as Sale & { cost_ars?: number | null }).cost_ars || 0)
+    const directCost = Number((sale as Sale & { cost_ars?: number | null }).cost_ars || 0)
+    const stockCost = sale.stock_item_id ? Number(stockCostById.get(sale.stock_item_id) || 0) : 0
+    const cost = directCost || stockCost
     return acc + (total - cost)
   }, 0)
 
