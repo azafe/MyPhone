@@ -310,16 +310,21 @@ export function SalesNewPage() {
         </button>
         {openSections.payment && (
           <div className="mt-4 space-y-3">
-            <Field label="Método">
-              <Select {...form.register('method')}>
-                <option value="cash">Efectivo</option>
-                <option value="transfer">Transferencia</option>
-                <option value="card">Tarjeta</option>
-                <option value="mixed">Mixto</option>
-                <option value="trade_in">Permuta</option>
-              </Select>
-            </Field>
-            <Field label="Moneda de pago">
+            {selectedStock && (
+              <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2 text-sm text-[#0F172A]">
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">
+                  Precio publicado
+                </div>
+                <div className="mt-2 text-sm font-medium">
+                  {selectedStock.sale_price_usd
+                    ? `USD ${Math.round(selectedStock.sale_price_usd).toLocaleString('es-AR')}`
+                    : 'USD —'}{' '}
+                  · {selectedStock.sale_price_ars ? `$${selectedStock.sale_price_ars.toLocaleString('es-AR')}` : '$ —'}
+                </div>
+              </div>
+            )}
+
+            <Field label="Moneda de cobro">
               <Select {...form.register('payment_currency')}>
                 <option value="ars">ARS</option>
                 <option value="usd">USD</option>
@@ -332,18 +337,36 @@ export function SalesNewPage() {
               </Field>
             )}
             {(paymentCurrency === 'ars' || paymentCurrency === 'mixed') && (
-              <Field label="Monto ARS">
+              <Field label="Monto ARS recibido">
                 <Input type="number" {...form.register('payment_ars')} />
               </Field>
             )}
             {(paymentCurrency === 'usd' || paymentCurrency === 'mixed') && (
-              <Field label="Monto USD">
+              <Field label="Monto USD recibido">
                 <Input type="number" {...form.register('payment_usd')} />
               </Field>
             )}
             <Field label="Total ARS (calculado)">
               <Input type="number" value={computedTotalArs ? Number(computedTotalArs).toFixed(0) : ''} readOnly disabled />
               {paymentNote && <div className="mt-1.5 text-xs text-[#5B677A]">{paymentNote}</div>}
+            </Field>
+            {selectedStock?.sale_price_ars ? (
+              <div className="rounded-xl border border-[#E6EBF2] bg-white px-3 py-2 text-xs text-[#5B677A]">
+                Diferencia vs precio publicado:{' '}
+                <span className="font-semibold text-[#0F172A]">
+                  {(computedTotalArs - selectedStock.sale_price_ars).toLocaleString('es-AR')}
+                </span>
+              </div>
+            ) : null}
+
+            <Field label="Método de pago">
+              <Select {...form.register('method')}>
+                <option value="cash">Efectivo</option>
+                <option value="transfer">Transferencia</option>
+                <option value="card">Tarjeta</option>
+                <option value="mixed">Mixto</option>
+                <option value="trade_in">Permuta</option>
+              </Select>
             </Field>
             {(watchMethod === 'card' || watchMethod === 'mixed') && (
               <div className="grid gap-3 md:grid-cols-3">
