@@ -112,7 +112,6 @@ export function DashboardPage() {
         <Card className="p-5">
           <h3 className="text-lg font-semibold text-[#0F172A]">Estado general</h3>
           <ul className="mt-3 space-y-2 text-sm text-[#5B677A]">
-            <li>Permutas abiertas: {finance?.open_tradeins ?? 0}</li>
             <li>Stock disponible: {availableCount}</li>
             <li>Equipos reservados: {reservedCount}</li>
           </ul>
