@@ -2,10 +2,10 @@ export type Role = 'admin' | 'seller'
 
 export type Profile = {
   id: string
-  email: string
   full_name: string | null
   role: Role
-  active?: boolean
+  email?: string | null
+  is_enabled?: boolean
 }
 
 export type StockStatus = 'available' | 'reserved' | 'sold'

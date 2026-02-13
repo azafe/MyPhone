@@ -36,8 +36,6 @@ export function UserMenu() {
     user?.user_metadata?.role?.trim() ||
     'Rol no definido'
 
-  const metadataDebug = user?.user_metadata ? JSON.stringify(user.user_metadata, null, 2) : 'Sin metadata'
-  const profileDebug = profile ? JSON.stringify(profile, null, 2) : 'Sin profile'
 
   const initialSource =
     profile?.full_name?.trim() ||
@@ -68,12 +66,6 @@ export function UserMenu() {
               {role}
             </span>
           </div>
-          <pre className="mt-3 max-h-28 overflow-auto rounded-lg bg-[#F8FAFC] p-2 text-[10px] text-[#334155]">
-            {metadataDebug}
-          </pre>
-          <pre className="mt-2 max-h-28 overflow-auto rounded-lg bg-[#F8FAFC] p-2 text-[10px] text-[#334155]">
-            {profileDebug}
-          </pre>
           <div className="my-3 h-px bg-[#E6EBF2]" />
           <button
             type="button"
