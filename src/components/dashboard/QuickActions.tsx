@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { cn } from '../../lib/utils'
+import type { ReactNode } from 'react'
 
 const actions = [
   { label: 'Nueva venta', to: '/sales/new', icon: 'sale' },
@@ -8,7 +9,7 @@ const actions = [
   { label: 'Garantías', to: '/warranties', icon: 'shield' },
 ]
 
-const icons: Record<string, JSX.Element> = {
+const icons: Record<string, ReactNode> = {
   sale: (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
       <path d="M4 12l5 5 11-11" />
