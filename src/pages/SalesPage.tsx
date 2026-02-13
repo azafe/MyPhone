@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { deleteSale, fetchSales } from '../services/sales'
@@ -14,17 +14,13 @@ export function SalesPage() {
   const [search, setSearch] = useState('')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data = [], isLoading, error } = useQuery<Sale[]>({
+  const { data, isLoading, error } = useQuery<Sale[], Error>({
     queryKey: ['sales', search],
     queryFn: () => fetchSales(search || undefined),
     retry: 1,
-    onError: (err) => {
-      const message = err instanceof Error ? err.message : 'No se pudieron cargar las ventas'
-      toast.error(message)
-      console.error('fetchSales error', err)
-    },
   })
-  const [selected, setSelected] = useState<(typeof data)[number] | null>(null)
+  const sales = data ?? []
+  const [selected, setSelected] = useState<Sale | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
@@ -51,6 +47,13 @@ export function SalesPage() {
     setDetailsOpen(true)
   }
 
+  useEffect(() => {
+    if (!error) return
+    const message = error.message || 'No se pudieron cargar las ventas'
+    toast.error(message)
+    console.error('fetchSales error', error)
+  }, [error])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -70,7 +73,7 @@ export function SalesPage() {
           </div>
         ) : isLoading ? (
           <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Cargando...</div>
-        ) : data.length === 0 ? (
+        ) : sales.length === 0 ? (
           <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">
             Todavía no hay ventas registradas.
             <div className="mt-4">
@@ -78,7 +81,7 @@ export function SalesPage() {
             </div>
           </div>
         ) : (
-          data.map((sale) => <SalesListItem key={sale.id} sale={sale} onClick={() => openDetails(sale)} />)
+          sales.map((sale) => <SalesListItem key={sale.id} sale={sale} onClick={() => openDetails(sale)} />)
         )}
       </div>
 
