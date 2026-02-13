@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { fetchFinanceSummary } from '../services/finance'
 import { fetchSales } from '../services/sales'
+import { fetchStock } from '../services/stock'
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -23,6 +24,20 @@ export function DashboardPage() {
     queryKey: ['sales', 'month'],
     queryFn: () => fetchSales(),
   })
+
+  const { data: stock = [] } = useQuery({
+    queryKey: ['stock', 'dashboard'],
+    queryFn: () => fetchStock(),
+  })
+
+  const availableCount = useMemo(
+    () => stock.filter((item) => item.status === 'available').length,
+    [stock],
+  )
+  const reservedCount = useMemo(
+    () => stock.filter((item) => item.status === 'reserved').length,
+    [stock],
+  )
 
   const soldThisMonth = useMemo(() => {
     const start = new Date(from)
@@ -98,8 +113,8 @@ export function DashboardPage() {
           <h3 className="text-lg font-semibold text-[#0F172A]">Estado general</h3>
           <ul className="mt-3 space-y-2 text-sm text-[#5B677A]">
             <li>Permutas abiertas: {finance?.open_tradeins ?? 0}</li>
-            <li>Stock disponible: 0</li>
-            <li>Equipos reservados: 0</li>
+            <li>Stock disponible: {availableCount}</li>
+            <li>Equipos reservados: {reservedCount}</li>
           </ul>
         </Card>
       </div>
