@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 
 export function UserMenu() {
-  const { profile, signOut } = useAuth()
+  const { profile, user, signOut } = useAuth()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
@@ -25,11 +25,16 @@ export function UserMenu() {
     }
   }, [open])
 
-  const fullName = profile?.full_name?.trim() || 'Sin nombre'
-  const email = profile?.email?.trim() || 'Sin email'
+  const fullName = profile?.full_name?.trim() || user?.user_metadata?.full_name?.trim() || 'Sin nombre'
+  const email = profile?.email?.trim() || user?.email?.trim() || 'Sin email'
   const role = profile?.role?.trim() || 'Rol no definido'
 
-  const initialSource = profile?.full_name?.trim() || profile?.email?.trim() || 'U'
+  const initialSource =
+    profile?.full_name?.trim() ||
+    user?.user_metadata?.full_name?.trim() ||
+    profile?.email?.trim() ||
+    user?.email?.trim() ||
+    'U'
   const initial = initialSource.slice(0, 1).toUpperCase()
 
   return (
