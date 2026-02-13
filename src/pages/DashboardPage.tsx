@@ -4,7 +4,6 @@ import { fetchFinanceSummary } from '../services/finance'
 import { fetchSales } from '../services/sales'
 import { fetchStock } from '../services/stock'
 import { KpiGrid } from '../components/dashboard/KpiGrid'
-import { QuickActions } from '../components/dashboard/QuickActions'
 import { StatusMiniCards } from '../components/dashboard/StatusMiniCards'
 import { PerformanceCard } from '../components/dashboard/PerformanceCard'
 
@@ -60,6 +59,8 @@ export function DashboardPage() {
         <p className="text-sm text-[#5B677A]">Tu mostrador en un vistazo.</p>
       </div>
 
+      <PerformanceCard sales={sales} />
+
       <KpiGrid
         salesArs={salesMonth}
         salesUsd={salesMonthUsd}
@@ -68,11 +69,7 @@ export function DashboardPage() {
         stockAvailable={availableCount}
       />
 
-      <QuickActions />
-
       <StatusMiniCards available={availableCount} reserved={reservedCount} />
-
-      <PerformanceCard sales={sales} />
     </div>
   )
 }
