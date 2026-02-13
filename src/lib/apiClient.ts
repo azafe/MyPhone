@@ -1,6 +1,9 @@
 import { supabase } from './supabase'
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
+const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
+const isLocalHost =
+  typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+const apiBaseUrl = import.meta.env.PROD && !isLocalHost ? '' : configuredBaseUrl
 
 type ApiOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
