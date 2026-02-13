@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchFinanceSummary } from '../services/finance'
 import type { FinanceSummary } from '../types'
 import { StatCard } from '../components/ui/StatCard'
+import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Table } from '../components/ui/Table'
@@ -41,6 +42,20 @@ function resolveRange(range: QuickRange) {
   }
 }
 
+function downloadCsv(filename: string, rows: string[][]) {
+  const escapeCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`
+  const csv = rows.map((row) => row.map((cell) => escapeCell(cell)).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function FinancePage() {
   const defaultRange = resolveRange('month')
   const [quickRange, setQuickRange] = useState<QuickRange>('month')
@@ -71,11 +86,33 @@ export function FinancePage() {
   const estimatedMargin = Number(summary.margin_total ?? summary.margin_month ?? 0)
   const avgTicket = Number(summary.ticket_avg ?? summary.avg_ticket ?? 0) || (salesCount > 0 ? totalSales / salesCount : 0)
 
+  const handleExportCsv = () => {
+    const rows: string[][] = [
+      ['Métrica', 'Valor'],
+      ['Desde', from],
+      ['Hasta', to],
+      ['Ventas totales', String(totalSales)],
+      ['Cantidad de ventas', String(salesCount)],
+      ['Margen estimado', String(estimatedMargin)],
+      ['Ticket promedio', String(Math.round(avgTicket))],
+      [],
+      ['Mix de pagos', ''],
+      ['Método', 'Total'],
+      ...mixRows.map((row) => [row.method, String(row.total)]),
+    ]
+    downloadCsv(`finance-${from}-to-${to}.csv`, rows)
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Finanzas</h2>
-        <p className="text-sm text-[#5B677A]">Resumen ejecutivo por período.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Finanzas</h2>
+          <p className="text-sm text-[#5B677A]">Resumen ejecutivo por período.</p>
+        </div>
+        <Button variant="secondary" onClick={handleExportCsv}>
+          Exportar CSV
+        </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">

@@ -6,13 +6,20 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import toast from 'react-hot-toast'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchStock } from '../services/stock'
-import { createSale } from '../services/sales'
+import { createSale, type CreateSalePayload } from '../services/sales'
 import { fetchInstallmentRules } from '../services/installments'
 import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 import { Card } from '../components/ui/Card'
+
+function createIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
 
 const saleItemSchema = z.object({
   stock_item_id: z.string().min(1, 'Seleccioná un equipo'),
@@ -132,7 +139,8 @@ export function SalesNewPage() {
   }, [preselected, stock, form])
 
   const mutation = useMutation({
-    mutationFn: createSale,
+    mutationFn: ({ payload, idempotencyKey }: { payload: CreateSalePayload; idempotencyKey: string }) =>
+      createSale(payload, { idempotencyKey }),
     onSuccess: () => {
       toast.success('Venta registrada')
       queryClient.invalidateQueries({ queryKey: ['stock'] })
@@ -197,6 +205,8 @@ export function SalesNewPage() {
   }
 
   const onSubmit = (values: FormValues) => {
+    if (mutation.isPending) return
+
     const parsed = schema.parse(values)
 
     const itemsPayload = parsed.items.map((item) => ({
@@ -212,7 +222,7 @@ export function SalesNewPage() {
       return
     }
 
-    mutation.mutate({
+    const payload: CreateSalePayload = {
       sale_date: new Date().toISOString(),
       customer: {
         name: parsed.customer_name,
@@ -248,6 +258,11 @@ export function SalesNewPage() {
             fx_rate_used: parsed.trade_fx_rate ?? 0,
           }
         : undefined,
+    }
+
+    mutation.mutate({
+      payload,
+      idempotencyKey: createIdempotencyKey(),
     })
   }
 

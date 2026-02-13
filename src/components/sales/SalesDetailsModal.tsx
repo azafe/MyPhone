@@ -35,6 +35,41 @@ const statusStyles: Record<string, string> = {
 
 const formatArs = (value?: number | null) => (typeof value === 'number' ? `$${value.toLocaleString('es-AR')}` : '—')
 
+function buildWhatsAppText({
+  saleId,
+  customer,
+  phone,
+  dateLabel,
+  equipment,
+  total,
+}: {
+  saleId: string
+  customer: string
+  phone: string
+  dateLabel: string
+  equipment: string
+  total: string
+}) {
+  return [
+    'MyPhone - Comprobante de venta',
+    `Venta: ${saleId}`,
+    `Cliente: ${customer}`,
+    `Teléfono: ${phone}`,
+    `Equipo: ${equipment || '—'}`,
+    `Fecha: ${dateLabel}`,
+    `Total: ${total}`,
+  ].join('\n')
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: SalesDetailsModalProps) {
   if (!sale) return null
 
@@ -68,6 +103,62 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
     .join(' · ')
   const statusLabel = sale.status ? statusLabels[sale.status] ?? sale.status : null
   const statusStyle = sale.status ? statusStyles[sale.status] ?? 'bg-[rgba(91,103,122,0.16)] text-[#334155]' : ''
+  const totalLabel = formatArs(sale.total_ars)
+  const whatsAppText = buildWhatsAppText({
+    saleId: sale.id,
+    customer,
+    phone,
+    dateLabel,
+    equipment: equipmentName,
+    total: totalLabel,
+  })
+
+  const handleShareWhatsApp = () => {
+    const url = `https://wa.me/?text=${encodeURIComponent(whatsAppText)}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  const handlePrintReceipt = () => {
+    const popup = window.open('', '_blank', 'width=720,height=860')
+    if (!popup) return
+    const safeCustomer = escapeHtml(customer)
+    const safePhone = escapeHtml(phone)
+    const safeDate = escapeHtml(dateLabel)
+    const safeEquipment = escapeHtml(equipmentName || '—')
+    const safeTotal = escapeHtml(totalLabel)
+    const safeSaleId = escapeHtml(sale.id)
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Comprobante de venta</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+            h1 { font-size: 20px; margin-bottom: 8px; }
+            p { margin: 6px 0; }
+            .muted { color: #5b677a; }
+            .box { border: 1px solid #e6ebf2; border-radius: 10px; padding: 12px; margin-top: 12px; }
+          </style>
+        </head>
+        <body>
+          <h1>MyPhone - Comprobante de venta</h1>
+          <p class="muted">Venta: ${safeSaleId}</p>
+          <div class="box">
+            <p><strong>Cliente:</strong> ${safeCustomer}</p>
+            <p><strong>Teléfono:</strong> ${safePhone}</p>
+            <p><strong>Fecha:</strong> ${safeDate}</p>
+            <p><strong>Equipo:</strong> ${safeEquipment}</p>
+            <p><strong>Total:</strong> ${safeTotal}</p>
+          </div>
+        </body>
+      </html>
+    `
+    popup.document.write(html)
+    popup.document.close()
+    popup.focus()
+    popup.print()
+  }
 
   return (
     <Modal
@@ -81,6 +172,12 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
             Cerrar
           </Button>
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={handlePrintReceipt}>
+              Comprobante
+            </Button>
+            <Button variant="secondary" onClick={handleShareWhatsApp}>
+              WhatsApp
+            </Button>
             <Button variant="secondary" onClick={onEdit}>
               Editar
             </Button>
@@ -92,7 +189,7 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
       }
     >
       <div className="flex flex-wrap items-center gap-3">
-        <div className="text-lg font-semibold text-[#0F172A]">{formatArs(sale.total_ars)}</div>
+        <div className="text-lg font-semibold text-[#0F172A]">{totalLabel}</div>
         <Badge label={methodLabels[sale.method] ?? sale.method} />
         {statusLabel ? <span className={`rounded-full px-2 py-0.5 text-xs ${statusStyle}`}>{statusLabel}</span> : null}
       </div>

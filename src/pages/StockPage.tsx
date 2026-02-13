@@ -91,6 +91,7 @@ export function StockPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [filters, setFilters] = useState({ status: '', category: '', query: '', condition: '' })
+  const [criticalOnly, setCriticalOnly] = useState(false)
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<StockItem | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -107,6 +108,35 @@ export function StockPage() {
         condition: filters.condition || undefined,
       }),
   })
+
+  const criticalStats = useMemo(() => {
+    const availableItems = data.filter((item) => item.status === 'available')
+    const missingPrice = availableItems.filter((item) => !item.sale_price_ars || item.sale_price_ars <= 0)
+    const missingImei = availableItems.filter((item) => isAppleBrand(item.brand) && !item.imei)
+    const lowMargin = availableItems.filter((item) => {
+      if (!item.purchase_ars || !item.sale_price_ars) return false
+      const margin = (item.sale_price_ars - item.purchase_ars) / item.sale_price_ars
+      return margin < 0.08
+    })
+
+    const criticalIds = new Set<string>([
+      ...missingPrice.map((item) => item.id),
+      ...missingImei.map((item) => item.id),
+      ...lowMargin.map((item) => item.id),
+    ])
+
+    return {
+      missingPrice: missingPrice.length,
+      missingImei: missingImei.length,
+      lowMargin: lowMargin.length,
+      criticalIds,
+    }
+  }, [data])
+
+  const visibleItems = useMemo(() => {
+    if (!criticalOnly) return data
+    return data.filter((item) => criticalStats.criticalIds.has(item.id))
+  }, [criticalOnly, criticalStats.criticalIds, data])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -371,13 +401,31 @@ export function StockPage() {
         <Input placeholder="Condición" value={filters.condition} onChange={(e) => setFilters({ ...filters, condition: e.target.value })} />
       </div>
 
+      {(criticalStats.missingPrice > 0 || criticalStats.missingImei > 0 || criticalStats.lowMargin > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.10)] px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="font-semibold text-[#92400E]">Alertas de stock</span>
+            <span className="rounded-full bg-white px-2 py-1 text-xs text-[#92400E]">Sin precio: {criticalStats.missingPrice}</span>
+            <span className="rounded-full bg-white px-2 py-1 text-xs text-[#92400E]">Sin IMEI (Apple): {criticalStats.missingImei}</span>
+            <span className="rounded-full bg-white px-2 py-1 text-xs text-[#92400E]">Margen &lt; 8%: {criticalStats.lowMargin}</span>
+          </div>
+          <Button
+            size="sm"
+            variant={criticalOnly ? 'primary' : 'secondary'}
+            onClick={() => setCriticalOnly((prev) => !prev)}
+          >
+            {criticalOnly ? 'Ver todo' : 'Ver críticos'}
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-3">
         {isLoading ? (
           <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Cargando...</div>
-        ) : data.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Sin equipos en stock.</div>
         ) : (
-          data.map((item) => <StockListItem key={item.id} item={item} onClick={() => openDetails(item)} />)
+          visibleItems.map((item) => <StockListItem key={item.id} item={item} onClick={() => openDetails(item)} />)
         )}
       </div>
 
