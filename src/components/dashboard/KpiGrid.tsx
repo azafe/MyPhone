@@ -1,41 +1,31 @@
-import { formatARS, formatUnits, formatUSD } from './formatters'
+import { KpiCard, type KpiStatus } from './KpiCard'
 
-type KpiGridProps = {
-  salesArs: number
-  salesUsd: number | null
-  marginArs: number
-  units: number
-  stockAvailable: number
+export type KpiItem = {
+  key: string
+  title: string
+  value: string
+  subtitle?: string
+  status?: KpiStatus
+  trend?: string
+  icon?: React.ReactNode
+  onClick?: () => void
 }
 
-export function KpiGrid({ salesArs, salesUsd, marginArs, units, stockAvailable }: KpiGridProps) {
+export function KpiGrid({ items }: { items: KpiItem[] }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <div className="rounded-2xl border border-[#E6EBF2] bg-white p-4 shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Ventas</p>
-        <div className="mt-2 text-2xl font-semibold text-[#0F172A]">{formatARS(salesArs)}</div>
-        <p className="mt-1 text-xs text-[#5B677A]">
-          {salesUsd != null ? formatUSD(salesUsd) : 'USD no disponible'}
-        </p>
-      </div>
-
-      <div className="rounded-2xl border border-[#E6EBF2] bg-white p-4 shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Margen</p>
-        <div className="mt-2 text-2xl font-semibold text-[#0F172A]">{formatARS(marginArs)}</div>
-        <p className="mt-1 text-xs text-[#5B677A]">Estimado del período</p>
-      </div>
-
-      <div className="rounded-2xl border border-[#E6EBF2] bg-white p-4 shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Unidades</p>
-        <div className="mt-2 text-2xl font-semibold text-[#0F172A]">{formatUnits(units)}</div>
-        <p className="mt-1 text-xs text-[#5B677A]">Ventas del período</p>
-      </div>
-
-      <div className="rounded-2xl border border-[#E6EBF2] bg-white p-4 shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Stock disponible</p>
-        <div className="mt-2 text-2xl font-semibold text-[#0F172A]">{formatUnits(stockAvailable)}</div>
-        <p className="mt-1 text-xs text-[#5B677A]">Equipos listos</p>
-      </div>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {items.map((item) => (
+        <KpiCard
+          key={item.key}
+          title={item.title}
+          value={item.value}
+          subtitle={item.subtitle}
+          status={item.status}
+          trend={item.trend}
+          icon={item.icon}
+          onClick={item.onClick}
+        />
+      ))}
     </div>
   )
 }
