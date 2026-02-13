@@ -136,25 +136,26 @@ export function StockPage() {
     const [purchaseUsd, fx] = watched
     const usd = Number(purchaseUsd || 0)
     const rate = Number(fx || 0)
-    if (!usd || !rate) return 0
+    if (!usd || !rate) return null
     return usd * rate
   }, [watched])
 
   const saleArs = useMemo(() => {
     const saleUsd = Number(watched[3] || 0)
     const fx = Number(watched[1] || 0)
-    if (!saleUsd || !fx) return 0
+    if (!saleUsd || !fx) return null
     return saleUsd * fx
   }, [watched])
 
   const marginPct = useMemo(() => {
-    const sale = Number(saleArs || 0)
-    if (!sale) return 0
-    return ((sale - Number(purchaseArs || 0)) / sale) * 100
+    if (!purchaseArs || !saleArs) return null
+    if (!purchaseArs) return null
+    return ((saleArs - purchaseArs) / purchaseArs) * 100
   }, [purchaseArs, saleArs])
 
   const gainArs = useMemo(() => {
-    return Number(saleArs || 0) - Number(purchaseArs || 0)
+    if (!purchaseArs || !saleArs) return null
+    return saleArs - purchaseArs
   }, [saleArs, purchaseArs])
 
   const category = form.watch('category')
@@ -474,6 +475,9 @@ export function StockPage() {
                   <option value="1024">1024</option>
                 </Select>
               </Field>
+              <Field label="Batería (%)">
+                <Input className="h-12" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={isConditionNew} />
+              </Field>
               <Field label="Condición">
                 {category === 'promotion' ? (
                   <Select {...form.register('condition')}>
@@ -485,9 +489,6 @@ export function StockPage() {
                 ) : (
                   <Input className="h-11" value={conditionLabels[conditionValue]} readOnly />
                 )}
-              </Field>
-              <Field label="Batería (%)">
-                <Input className="h-11" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={isConditionNew} />
               </Field>
               <Field label="Color">
                 <Select {...form.register('color')}>
@@ -513,7 +514,7 @@ export function StockPage() {
                 </Field>
               )}
               <Field label="Garantía (días)">
-                <Input className="h-11" type="number" {...form.register('warranty_days')} />
+                <Input className="h-12" type="number" {...form.register('warranty_days')} />
                 <div className="mt-2 flex gap-2">
                   <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 30)}>
                     30
@@ -529,7 +530,7 @@ export function StockPage() {
               <div className="md:col-span-2">
                 <Field label="IMEI (opcional)">
                   <Input
-                    className="h-11"
+                    className="h-12"
                     {...form.register('imei')}
                     placeholder="Últimos 4 dígitos"
                     disabled={imeiLater}
@@ -551,53 +552,64 @@ export function StockPage() {
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costos y precio</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Costo USD">
-                <Input className="h-11" type="number" step="0.01" {...form.register('purchase_usd')} />
-              </Field>
-              <Field label="Tipo de cambio (ARS/USD)">
-                <Input className="h-11" type="number" step="0.01" {...form.register('fx_rate_used')} />
-              </Field>
-              <Field label="Costo ARS">
-                <Input
-                  className="h-11"
-                  type="number"
-                  step="0.01"
-                  value={purchaseArs ? purchaseArs.toFixed(0) : ''}
-                  readOnly
-                  disabled
-                />
-                <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
-              </Field>
-              <Field label="Precio de venta sugerido (USD)">
-                <Input className="h-11" type="number" step="0.01" {...form.register('sale_price_usd')} />
-              </Field>
-              <Field label="Precio de venta ARS">
-                <Input
-                  className="h-11"
-                  type="number"
-                  step="0.01"
-                  value={saleArs ? saleArs.toFixed(0) : ''}
-                  readOnly
-                  disabled
-                />
-                <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
-              </Field>
+              <div className="rounded-xl bg-[#F8FAFC] p-4 md:col-span-2">
+                <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costo</h4>
+                <div className="mt-3 grid gap-4 md:grid-cols-3">
+                  <Field label="Costo USD">
+                    <Input className="h-12" type="number" step="0.01" placeholder="Ej: 400" {...form.register('purchase_usd')} />
+                  </Field>
+                  <Field label="Tipo de cambio (ARS)">
+                    <Input className="h-12" type="number" step="0.01" placeholder="Ej: 1200" {...form.register('fx_rate_used')} />
+                    <div className="mt-1.5 text-xs text-[#5B677A]">Se utilizará el mismo tipo de cambio para el precio.</div>
+                  </Field>
+                  <Field label="Costo ARS">
+                    <Input
+                      className="h-12 bg-[#F1F5F9]"
+                      type="number"
+                      step="0.01"
+                      value={purchaseArs ? purchaseArs.toFixed(0) : ''}
+                      readOnly
+                      disabled
+                    />
+                    <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
+                  </Field>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-[#F8FAFC] p-4 md:col-span-2">
+                <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Precio de venta</h4>
+                <div className="mt-3 grid gap-4 md:grid-cols-3">
+                  <Field label="Precio de venta sugerido (USD)">
+                    <Input className="h-12" type="number" step="0.01" placeholder="Ej: 650" {...form.register('sale_price_usd')} />
+                  </Field>
+                  <Field label="Precio de venta ARS">
+                    <Input
+                      className="h-12 bg-[#F1F5F9]"
+                      type="number"
+                      step="0.01"
+                      value={saleArs ? saleArs.toFixed(0) : ''}
+                      readOnly
+                      disabled
+                    />
+                    <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
+                  </Field>
+                </div>
+              </div>
+
               <div className="md:col-span-2">
                 <div
                   className={cn(
-                    'rounded-xl px-3 py-3 text-xs font-medium',
+                    'rounded-xl px-4 py-4 text-xs font-medium',
                     !purchaseArs || !saleArs
                       ? 'bg-[#F8FAFC] text-[#5B677A]'
-                      : marginPct < 0
+                      : marginPct != null && marginPct < 0
                       ? 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]'
-                      : marginPct < 10
-                      ? 'bg-[rgba(245,158,11,0.14)] text-[#92400E]'
-                      : 'bg-[rgba(22,163,74,0.12)] text-[#166534]',
+                      : 'bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]',
                   )}
                 >
-                  <div>Margen estimado: {purchaseArs && saleArs ? `${marginPct.toFixed(1)}%` : '—'}</div>
-                  <div className="mt-1 text-[11px] text-[#5B677A]">
-                    Ganancia estimada: {purchaseArs && saleArs ? `ARS $${gainArs.toLocaleString('es-AR')}` : '—'}
+                  <div>Margen estimado: {marginPct != null ? `${marginPct.toFixed(1)}%` : '—'}</div>
+                  <div className={cn('mt-1 text-[11px]', marginPct != null && marginPct < 0 ? 'text-[#991B1B]' : 'text-[#0B4AA2]')}>
+                    Ganancia estimada: {gainArs != null ? `ARS $${gainArs.toLocaleString('es-AR')}` : '—'}
                   </div>
                 </div>
               </div>
