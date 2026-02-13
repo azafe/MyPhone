@@ -1,6 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
-import { Button } from '../ui/Button'
 import { cn } from '../../lib/utils'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import logo from '../../assets/myphone.png'
