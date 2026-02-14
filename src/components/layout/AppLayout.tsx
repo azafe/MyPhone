@@ -16,8 +16,9 @@ const navItems = [
 ]
 
 const primaryNav = [
+  { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { to: '/stock', label: 'Stock', icon: 'box' },
-  { to: '/sales/new', label: 'Nueva venta', icon: 'plus' },
+  { to: '/sales/new', label: 'Nueva', icon: 'plus' },
   { to: '/sales', label: 'Ventas', icon: 'sale' },
   { to: '/finance', label: 'Finanzas', icon: 'chart' },
 ]
