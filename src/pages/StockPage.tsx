@@ -90,7 +90,14 @@ const conditionLabels: Record<string, string> = {
 export function StockPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [filters, setFilters] = useState({ status: '', category: '', query: '', condition: '' })
+  const [filters, setFilters] = useState({
+    status: '',
+    category: '',
+    query: '',
+    condition: '',
+    sort: 'newest',
+  })
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [criticalOnly, setCriticalOnly] = useState(false)
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<StockItem | null>(null)
@@ -98,13 +105,36 @@ export function StockPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const fxStorageKey = 'myphone_fx_rate'
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedQuery(filters.query.trim())
+    }, 300)
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [filters.query])
+
+  const stockQueryKey = useMemo(
+    () =>
+      [
+        'stock',
+        {
+          status: filters.status,
+          category: filters.category,
+          query: debouncedQuery,
+          condition: filters.condition,
+        },
+      ] as const,
+    [filters.status, filters.category, debouncedQuery, filters.condition],
+  )
+
   const { data = [], isLoading } = useQuery({
-    queryKey: ['stock', filters],
+    queryKey: stockQueryKey,
     queryFn: () =>
       fetchStock({
         status: filters.status ? (filters.status as StockItem['status']) : undefined,
         category: filters.category || undefined,
-        query: filters.query || undefined,
+        query: debouncedQuery || undefined,
         condition: filters.condition || undefined,
       }),
   })
@@ -134,9 +164,33 @@ export function StockPage() {
   }, [data])
 
   const visibleItems = useMemo(() => {
-    if (!criticalOnly) return data
-    return data.filter((item) => criticalStats.criticalIds.has(item.id))
-  }, [criticalOnly, criticalStats.criticalIds, data])
+    const base = criticalOnly ? data.filter((item) => criticalStats.criticalIds.has(item.id)) : data
+    const sorted = [...base]
+
+    sorted.sort((a, b) => {
+      if (filters.sort === 'oldest') {
+        return new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()
+      }
+      if (filters.sort === 'price_desc') {
+        return Number(b.sale_price_ars || 0) - Number(a.sale_price_ars || 0)
+      }
+      if (filters.sort === 'price_asc') {
+        return Number(a.sale_price_ars || 0) - Number(b.sale_price_ars || 0)
+      }
+      if (filters.sort === 'margin_desc') {
+        const marginA = a.sale_price_ars && a.purchase_ars ? (a.sale_price_ars - a.purchase_ars) / a.sale_price_ars : -Infinity
+        const marginB = b.sale_price_ars && b.purchase_ars ? (b.sale_price_ars - b.purchase_ars) / b.sale_price_ars : -Infinity
+        return marginB - marginA
+      }
+      return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+    })
+
+    return sorted
+  }, [criticalOnly, criticalStats.criticalIds, data, filters.sort])
+
+  const hasActiveFilters = Boolean(
+    filters.status || filters.category || filters.condition || filters.query.trim() || criticalOnly,
+  )
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -389,16 +443,65 @@ export function StockPage() {
         <Button onClick={handleAddNewEquipmentClick}>Agregar equipo</Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Input placeholder="Buscar marca, modelo o IMEI" value={filters.query} onChange={(e) => setFilters({ ...filters, query: e.target.value })} />
+      <div className="grid gap-3 md:grid-cols-6">
+        <Input
+          placeholder="Buscar marca, modelo o IMEI"
+          value={filters.query}
+          onChange={(e) => setFilters({ ...filters, query: e.target.value })}
+          className="md:col-span-2"
+        />
         <Select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
           <option value="">Estado</option>
           <option value="available">Disponible</option>
           <option value="reserved">Reservado</option>
           <option value="sold">Vendido</option>
         </Select>
-        <Input placeholder="Categoría" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })} />
-        <Input placeholder="Condición" value={filters.condition} onChange={(e) => setFilters({ ...filters, condition: e.target.value })} />
+        <Select value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })}>
+          <option value="">Categoría</option>
+          <option value="new">Nuevo</option>
+          <option value="promotion">Promoción</option>
+          <option value="outlet">Outlet</option>
+          <option value="used_premium">Usado Premium</option>
+        </Select>
+        <Select value={filters.condition} onChange={(e) => setFilters({ ...filters, condition: e.target.value })}>
+          <option value="">Condición</option>
+          <option value="new">Nuevo</option>
+          <option value="like_new">Como nuevo</option>
+          <option value="used">Usado</option>
+          <option value="outlet">Outlet</option>
+        </Select>
+        <Select
+          value={filters.sort}
+          onChange={(e) =>
+            setFilters({
+              ...filters,
+              sort: e.target.value,
+            })
+          }
+        >
+          <option value="newest">Más nuevos</option>
+          <option value="oldest">Más antiguos</option>
+          <option value="price_desc">Precio mayor</option>
+          <option value="price_asc">Precio menor</option>
+          <option value="margin_desc">Mejor margen</option>
+        </Select>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-[#5B677A]">
+          {isLoading ? 'Buscando...' : `Mostrando ${visibleItems.length} de ${data.length} equipos`}
+        </p>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!hasActiveFilters}
+          onClick={() => {
+            setFilters({ status: '', category: '', query: '', condition: '', sort: 'newest' })
+            setCriticalOnly(false)
+          }}
+        >
+          Limpiar filtros
+        </Button>
       </div>
 
       {(criticalStats.missingPrice > 0 || criticalStats.missingImei > 0 || criticalStats.lowMargin > 0) && (
@@ -661,7 +764,7 @@ export function StockPage() {
         onStatusChange={(nextStatus) => {
           if (!selected) return
           setSelected({ ...selected, status: nextStatus })
-          queryClient.setQueryData<StockItem[]>(['stock', filters], (prev) =>
+          queryClient.setQueryData<StockItem[]>(stockQueryKey, (prev) =>
             (prev ?? []).map((item) => (item.id === selected.id ? { ...item, status: nextStatus } : item)),
           )
           statusMutation.mutate({ id: selected.id, status: nextStatus })
