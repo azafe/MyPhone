@@ -78,8 +78,9 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
     sale.customer?.name ||
     sale.customer?.full_name ||
     'Cliente sin nombre'
-  const dateLabel = sale.created_at
-    ? new Date(sale.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+  const saleDateSource = sale.sale_date ?? sale.created_at
+  const dateLabel = saleDateSource
+    ? new Date(saleDateSource).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
     : '—'
   const phone = sale.customer_phone || sale.customer?.phone || '—'
   const equipmentName = [sale.stock_brand, sale.stock_model].filter(Boolean).join(' ')
@@ -104,13 +105,18 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
   const statusLabel = sale.status ? statusLabels[sale.status] ?? sale.status : null
   const statusStyle = sale.status ? statusStyles[sale.status] ?? 'bg-[rgba(91,103,122,0.16)] text-[#334155]' : ''
   const totalLabel = formatArs(sale.total_ars)
+  const currency = sale.currency ?? 'ARS'
+  const mainTotalLabel =
+    currency === 'USD' && typeof sale.total_usd === 'number'
+      ? `USD ${sale.total_usd.toFixed(2)}`
+      : `ARS ${totalLabel}`
   const whatsAppText = buildWhatsAppText({
     saleId: sale.id,
     customer,
     phone,
     dateLabel,
     equipment: equipmentName,
-    total: totalLabel,
+    total: mainTotalLabel,
   })
 
   const handleShareWhatsApp = () => {
@@ -125,7 +131,7 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
     const safePhone = escapeHtml(phone)
     const safeDate = escapeHtml(dateLabel)
     const safeEquipment = escapeHtml(equipmentName || '—')
-    const safeTotal = escapeHtml(totalLabel)
+    const safeTotal = escapeHtml(mainTotalLabel)
     const safeSaleId = escapeHtml(sale.id)
     const html = `
       <!doctype html>
@@ -179,7 +185,7 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
               WhatsApp
             </Button>
             <Button variant="secondary" onClick={onEdit}>
-              Editar
+              Nueva venta
             </Button>
             <Button variant="danger" onClick={onDelete}>
               Eliminar
@@ -189,8 +195,9 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
       }
     >
       <div className="flex flex-wrap items-center gap-3">
-        <div className="text-lg font-semibold text-[#0F172A]">{totalLabel}</div>
+        <div className="text-lg font-semibold text-[#0F172A]">{mainTotalLabel}</div>
         <Badge label={methodLabels[sale.method] ?? sale.method} />
+        {sale.includes_cube_20w ? <Badge label="Cubo 20W" tone="valued" /> : null}
         {statusLabel ? <span className={`rounded-full px-2 py-0.5 text-xs ${statusStyle}`}>{statusLabel}</span> : null}
       </div>
 
@@ -198,8 +205,14 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
         <section className="rounded-xl border border-[#E6EBF2] bg-white p-4">
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Resumen</h4>
           <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
-            <div className="text-lg font-semibold">{formatArs(sale.total_ars)}</div>
+            <div className="text-lg font-semibold">{mainTotalLabel}</div>
             <div>Método: {methodLabels[sale.method] ?? sale.method}</div>
+            {currency === 'USD' && (
+              <div>
+                ARS: {formatArs(sale.total_ars)}
+                {sale.fx_rate_used ? ` · TC: ${sale.fx_rate_used}` : ''}
+              </div>
+            )}
             <div>Fecha: {dateLabel}</div>
             {(sale.seller_name || sale.seller_full_name) && (
               <div>Vendedor: {sale.seller_name || sale.seller_full_name}</div>
@@ -236,9 +249,16 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Pago</h4>
           <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
             <div>Total ARS: {formatArs(sale.total_ars)}</div>
+            {currency === 'USD' && typeof sale.total_usd === 'number' ? (
+              <div>Total USD: USD {sale.total_usd.toFixed(2)}</div>
+            ) : null}
             {sale.card_brand ? <div>Tarjeta: {sale.card_brand}</div> : null}
             {sale.installments ? <div>Cuotas: {sale.installments}</div> : null}
             {typeof sale.deposit_ars === 'number' ? <div>Seña ARS: {formatArs(sale.deposit_ars)}</div> : null}
+            {typeof sale.balance_due_ars === 'number' && sale.balance_due_ars > 0 ? (
+              <div>Saldo pendiente ARS: {formatArs(sale.balance_due_ars)}</div>
+            ) : null}
+            {sale.notes ? <div>Observaciones: {sale.notes}</div> : null}
           </div>
         </section>
       </div>

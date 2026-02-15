@@ -10,6 +10,10 @@ type StockItemExtended = StockItem & {
   color_other?: string | null
   battery_pct?: number | null
   sale_price_usd?: number | null
+  provider_name?: string | null
+  details?: string | null
+  received_at?: string | null
+  is_promo?: boolean | null
 }
 
 type StockItemDetailsModalProps = {
@@ -55,11 +59,15 @@ export function StockItemDetailsModal({
     available: 'Disponible',
     reserved: 'Reservado',
     sold: 'Vendido',
+    service_tech: 'Servicio técnico',
+    drawer: 'Cajón',
   }
   const statusOptions: Array<{ value: StockItem['status']; label: string }> = [
     { value: 'available', label: 'Disponible' },
     { value: 'reserved', label: 'Reservado' },
     { value: 'sold', label: 'Vendido' },
+    { value: 'service_tech', label: 'Servicio técnico' },
+    { value: 'drawer', label: 'Cajón' },
   ]
   const batteryValue = item.condition === 'new' ? 100 : item.battery_pct
   const categoryLabel: Record<string, string> = {
@@ -73,6 +81,11 @@ export function StockItemDetailsModal({
     ? new Date(new Date(item.created_at).getTime() + (item.warranty_days ?? 0) * 24 * 60 * 60 * 1000)
     : null
   const formattedWarrantyDate = warrantyDate ? warrantyDate.toLocaleDateString('es-AR') : null
+  const receivedLabel = item.received_at
+    ? new Date(item.received_at).toLocaleDateString('es-AR')
+    : item.created_at
+      ? new Date(item.created_at).toLocaleDateString('es-AR')
+      : null
   const hasPrice = Boolean(item.sale_price_ars)
   return (
     <Modal
@@ -97,6 +110,7 @@ export function StockItemDetailsModal({
             ))}
           </select>
         </div>
+        {item.is_promo && <Badge label="Promoción" tone="rejected" />}
         {!hasPrice && <Badge label="⚠️ Sin precio" tone="reserved" />}
       </div>
 
@@ -138,6 +152,20 @@ export function StockItemDetailsModal({
               <span className="text-[#5B677A]">IMEI</span>
               <span>{item.imei ?? 'Sin IMEI'}</span>
             </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-[#5B677A]">Proveedor</span>
+              <span>{item.provider_name ?? '—'}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="text-[#5B677A]">Fecha ingreso</span>
+              <span>{receivedLabel ?? '—'}</span>
+            </div>
+            {item.details && (
+              <div className="space-y-1 rounded-lg bg-[#F8FAFC] px-3 py-2">
+                <div className="text-[#5B677A]">Detalle</div>
+                <div>{item.details}</div>
+              </div>
+            )}
           </dl>
         </section>
 

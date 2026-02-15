@@ -44,10 +44,10 @@ export function WarrantiesPage() {
         </label>
       </div>
 
-      <Table headers={['Cliente', 'Equipo', 'Vence', 'Estado']}>
+      <Table headers={['Cliente', 'Equipo', 'Motivo', 'Equipo entregado', 'Vence', 'Estado']}>
         {filtered.length === 0 ? (
           <tr>
-            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={4}>
+            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={6}>
               No hay garantías.
             </td>
           </tr>
@@ -59,6 +59,8 @@ export function WarrantiesPage() {
                 <div className="text-xs text-[#5B677A]">{warranty.customer_phone}</div>
               </td>
               <td className="px-4 py-3 text-sm">{warranty.imei ?? warranty.stock_item_id}</td>
+              <td className="px-4 py-3 text-sm">{warranty.issue_reason ?? '—'}</td>
+              <td className="px-4 py-3 text-sm">{warranty.replacement_device_label ?? warranty.replacement_stock_item_id ?? '—'}</td>
               <td className="px-4 py-3 text-sm">{new Date(warranty.ends_at).toLocaleDateString('es-AR')}</td>
               <td className="px-4 py-3">
                 <Badge label={warranty.status} tone={warranty.status} />

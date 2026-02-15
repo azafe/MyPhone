@@ -4,7 +4,13 @@ import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import toast from 'react-hot-toast'
-import { fetchTradeIns, createTradeIn, updateTradeIn, convertTradeInToStock } from '../services/tradeins'
+import {
+  fetchTradeIns,
+  createTradeIn,
+  updateTradeIn,
+  convertTradeInToStock,
+  fetchPlanCanjeValues,
+} from '../services/tradeins'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -17,6 +23,9 @@ import { ActionMenu, ActionMenuItem } from '../components/ui/ActionMenu'
 import type { TradeIn, TradeStatus } from '../types'
 
 const schema = z.object({
+  sale_ref: z.string().optional(),
+  customer_name: z.string().optional(),
+  customer_phone: z.string().optional(),
   brand: z.string().min(1),
   model: z.string().min(1),
   storage: z.string().optional(),
@@ -42,6 +51,10 @@ export function TradeInsPage() {
   const { data = [] } = useQuery({
     queryKey: ['tradeins', status],
     queryFn: () => fetchTradeIns(status || undefined),
+  })
+  const { data: planCanjeValues = [] } = useQuery({
+    queryKey: ['plan_canje_values'],
+    queryFn: fetchPlanCanjeValues,
   })
 
   const form = useForm<FormValues>({
@@ -111,6 +124,15 @@ export function TradeInsPage() {
       <Card className="p-5">
         <h3 className="text-lg font-semibold text-[#0F172A]">Nueva permuta</h3>
         <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={form.handleSubmit(onSubmit)}>
+          <Field label="Ref. venta (opcional)">
+            <Input {...form.register('sale_ref')} placeholder="Ej: 44" />
+          </Field>
+          <Field label="Cliente (opcional)">
+            <Input {...form.register('customer_name')} placeholder="Nombre cliente" />
+          </Field>
+          <Field label="Teléfono (opcional)">
+            <Input {...form.register('customer_phone')} placeholder="11 1234-5678" />
+          </Field>
           <Field label="Marca">
             <Input {...form.register('brand')} />
           </Field>
@@ -154,21 +176,51 @@ export function TradeInsPage() {
         </form>
       </Card>
 
-      <Table headers={['Equipo', 'Valor', 'Estado', 'Acciones']}>
+      <Card className="p-5">
+        <h3 className="text-lg font-semibold text-[#0F172A]">Valores de plan canje</h3>
+        <p className="mt-1 text-xs text-[#5B677A]">Por línea de iPhone y rango de batería.</p>
+        <div className="mt-4">
+          <Table headers={['Modelo', 'Batería %', '% referencia']}>
+            {planCanjeValues.length === 0 ? (
+              <tr>
+                <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={3}>
+                  Sin valores cargados.
+                </td>
+              </tr>
+            ) : (
+              planCanjeValues.map((row) => (
+                <tr key={row.id}>
+                  <td className="px-4 py-3 text-sm">{row.model}</td>
+                  <td className="px-4 py-3 text-sm">
+                    {row.battery_min}% - {row.battery_max}%
+                  </td>
+                  <td className="px-4 py-3 text-sm">{row.pct_of_reference}%</td>
+                </tr>
+              ))
+            )}
+          </Table>
+        </div>
+      </Card>
+
+      <Table headers={['Ref', 'Equipo', 'Valor', 'Estado', 'Acciones']}>
         {data.length === 0 ? (
           <tr>
-            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={4}>
+            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={5}>
               No hay permutas.
             </td>
           </tr>
         ) : (
           data.map((trade) => (
             <tr key={trade.id}>
+              <td className="px-4 py-3 text-sm">{trade.sale_ref ?? '—'}</td>
               <td className="px-4 py-3">
                 <div className="text-sm font-medium text-[#0F172A]">
                   {trade.brand} {trade.model}
                 </div>
-                <div className="text-xs text-[#5B677A]">{trade.imei ?? 'Sin IMEI'}</div>
+                <div className="text-xs text-[#5B677A]">
+                  {trade.imei ?? 'Sin IMEI'}
+                  {trade.customer_name ? ` · ${trade.customer_name}` : ''}
+                </div>
               </td>
               <td className="px-4 py-3 text-sm">${trade.trade_value_ars.toLocaleString('es-AR')}</td>
               <td className="px-4 py-3">

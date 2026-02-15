@@ -19,7 +19,9 @@ export async function fetchStock(filters: StockFilters = {}) {
   }
   if (filters.condition) query = query.eq('condition', filters.condition)
   if (filters.query) {
-    query = query.or(`brand.ilike.%${filters.query}%,model.ilike.%${filters.query}%,imei.ilike.%${filters.query}%`)
+    query = query.or(
+      `brand.ilike.%${filters.query}%,model.ilike.%${filters.query}%,imei.ilike.%${filters.query}%,provider_name.ilike.%${filters.query}%,details.ilike.%${filters.query}%`
+    )
   }
 
   const { data, error } = await query

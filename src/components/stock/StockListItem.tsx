@@ -8,6 +8,10 @@ type StockListItemProps = {
     color?: string | null
     battery_pct?: number | null
     sale_price_usd?: number | null
+    provider_name?: string | null
+    details?: string | null
+    received_at?: string | null
+    is_promo?: boolean | null
   }
   onClick: () => void
 }
@@ -27,14 +31,24 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
     available: 'Disponible',
     reserved: 'Reservado',
     sold: 'Vendido',
+    service_tech: 'Servicio técnico',
+    drawer: 'Cajón',
   }
   const batteryValue = item.condition === 'new' ? 100 : item.battery_pct
+  const receivedLabel = item.received_at
+    ? new Date(item.received_at).toLocaleDateString('es-AR')
+    : item.created_at
+      ? new Date(item.created_at).toLocaleDateString('es-AR')
+      : '—'
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full cursor-pointer flex-col gap-2 rounded-2xl border border-[#E6EBF2] bg-white p-4 text-left transition duration-200 hover:bg-[#F8FAFC] active:bg-[#EEF2F7]"
+      className={cn(
+        'flex w-full cursor-pointer flex-col gap-2 rounded-2xl border bg-white p-4 text-left transition duration-200 hover:bg-[#F8FAFC] active:bg-[#EEF2F7]',
+        item.is_promo ? 'border-[rgba(220,38,38,0.45)]' : 'border-[#E6EBF2]',
+      )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -62,6 +76,13 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
             )}
           </div>
           <div className="mt-2 text-xs text-[#5B677A]">{categoryLabel[item.category] ?? item.category}</div>
+          <div className="mt-1 text-xs text-[#5B677A]">
+            Ingreso: {receivedLabel}
+            {item.provider_name ? ` · Proveedor: ${item.provider_name}` : ''}
+          </div>
+          {item.details && (
+            <div className="mt-1 text-xs text-[#92400E]">Detalle: {item.details}</div>
+          )}
         </div>
         <div className="text-right">
           <div className={cn('text-sm font-semibold', hasPrice ? 'text-[#0F172A]' : 'text-[#F59E0B]')}>
@@ -73,6 +94,11 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
           <div className="mt-2">
             <Badge label={statusLabel[item.status] ?? item.status} tone={item.status} />
           </div>
+          {item.is_promo && (
+            <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#DC2626]">
+              Promoción
+            </div>
+          )}
         </div>
       </div>
     </button>

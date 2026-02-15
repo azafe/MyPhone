@@ -4,6 +4,8 @@ const colors: Record<string, string> = {
   available: 'bg-[rgba(22,163,74,0.12)] text-[#166534]',
   reserved: 'bg-[rgba(245,158,11,0.14)] text-[#92400E]',
   sold: 'bg-[rgba(91,103,122,0.16)] text-[#334155]',
+  service_tech: 'bg-[rgba(56,189,248,0.14)] text-[#0C4A6E]',
+  drawer: 'bg-[rgba(148,163,184,0.2)] text-[#334155]',
   pending: 'bg-[rgba(245,158,11,0.14)] text-[#92400E]',
   valued: 'bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]',
   added_to_stock: 'bg-[rgba(22,163,74,0.12)] text-[#166534]',

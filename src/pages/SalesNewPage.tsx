@@ -23,11 +23,16 @@ const schema = z
   .object({
     customer_name: z.string().min(1, 'Ingresá el nombre del cliente'),
     customer_phone: z.string().min(1, 'Ingresá el teléfono del cliente'),
+    currency: z.enum(['ARS', 'USD']).default('ARS'),
+    fx_rate_used: z.coerce.number().optional().nullable(),
     method: z.enum(['cash', 'transfer', 'card', 'mixed', 'trade_in']),
     card_brand: z.string().optional().nullable(),
     installments: z.coerce.number().optional().nullable(),
     surcharge_pct: z.coerce.number().optional().nullable(),
     deposit_ars: z.coerce.number().optional().nullable(),
+    balance_due_ars: z.coerce.number().optional().nullable(),
+    includes_cube_20w: z.boolean().default(false),
+    notes: z.string().optional(),
     trade_in_enabled: z.boolean().default(false),
     trade_brand: z.string().optional(),
     trade_model: z.string().optional(),
@@ -46,6 +51,14 @@ const schema = z
         code: z.ZodIssueCode.custom,
         message: 'Ingresá la tarjeta',
         path: ['card_brand'],
+      })
+    }
+
+    if (values.currency === 'USD' && (!values.fx_rate_used || values.fx_rate_used <= 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ingresá tipo de cambio para ventas en USD',
+        path: ['fx_rate_used'],
       })
     }
 
@@ -91,7 +104,12 @@ export function SalesNewPage() {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
+      currency: 'ARS',
       method: 'cash',
+      fx_rate_used: null,
+      balance_due_ars: null,
+      includes_cube_20w: false,
+      notes: '',
       trade_in_enabled: false,
       items: [{ stock_item_id: preselected, sale_price_ars: 0 }],
     },
@@ -99,6 +117,8 @@ export function SalesNewPage() {
 
   const items = form.watch('items')
   const watchMethod = form.watch('method')
+  const currency = form.watch('currency')
+  const fxRateUsed = form.watch('fx_rate_used') ?? 0
   const tradeEnabled = form.watch('trade_in_enabled')
   const tradeUsd = form.watch('trade_value_usd') ?? 0
   const tradeFx = form.watch('trade_fx_rate') ?? 0
@@ -129,6 +149,12 @@ export function SalesNewPage() {
   )
 
   const totalArs = useMemo(() => lineSubtotals.reduce((acc, subtotal) => acc + subtotal, 0), [lineSubtotals])
+  const totalUsd = useMemo(() => {
+    if (currency !== 'USD') return null
+    const fx = Number(fxRateUsed || 0)
+    if (!fx || fx <= 0) return null
+    return totalArs / fx
+  }, [currency, fxRateUsed, totalArs])
 
   useEffect(() => {
     if (!preselected) return
@@ -224,10 +250,16 @@ export function SalesNewPage() {
         phone: parsed.customer_phone,
       },
       payment_method: parsed.method,
+      currency: parsed.currency,
+      fx_rate_used: parsed.currency === 'USD' ? parsed.fx_rate_used ?? null : null,
+      total_usd: parsed.currency === 'USD' ? (totalUsd ?? null) : null,
       card_brand: parsed.card_brand || null,
       installments: parsed.installments ?? null,
       surcharge_pct: parsed.surcharge_pct ?? surcharge,
       deposit_ars: parsed.deposit_ars ?? null,
+      balance_due_ars: parsed.balance_due_ars ?? null,
+      notes: parsed.notes?.trim() || null,
+      includes_cube_20w: parsed.includes_cube_20w,
       total_ars: calculatedTotal,
       items: itemsPayload,
       payment: {
@@ -375,6 +407,11 @@ export function SalesNewPage() {
             <Field label="Teléfono">
               <Input {...form.register('customer_phone')} placeholder="11 1234-5678" />
             </Field>
+            <div className="md:col-span-2">
+              <Field label="Observaciones">
+                <Input {...form.register('notes')} placeholder="Detalle de venta, faltante de pago, estado del equipo..." />
+              </Field>
+            </div>
             {(form.formState.errors.customer_name || form.formState.errors.customer_phone) && (
               <div className="md:col-span-2 space-y-1 text-xs text-[#DC2626]">
                 {form.formState.errors.customer_name?.message && <p>{form.formState.errors.customer_name.message}</p>}
@@ -396,6 +433,20 @@ export function SalesNewPage() {
         </button>
         {openSections.payment && (
           <div className="mt-4 space-y-3">
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Moneda de la operación">
+                <Select {...form.register('currency')}>
+                  <option value="ARS">ARS</option>
+                  <option value="USD">USD</option>
+                </Select>
+              </Field>
+              {currency === 'USD' && (
+                <Field label="Tipo de cambio">
+                  <Input type="number" min={0} {...form.register('fx_rate_used')} placeholder="Ej: 1250" />
+                </Field>
+              )}
+            </div>
+
             <Field label="Método de pago">
               <Select {...form.register('method')}>
                 <option value="cash">Efectivo</option>
@@ -424,13 +475,35 @@ export function SalesNewPage() {
               <Field label="Seña (opcional)">
                 <Input type="number" {...form.register('deposit_ars')} />
               </Field>
-              <Field label="Total ARS (calculado)">
-                <Input type="number" value={totalArs ? Number(totalArs).toFixed(0) : ''} readOnly disabled />
+              <Field label="Saldo pendiente (opcional)">
+                <Input type="number" {...form.register('balance_due_ars')} />
               </Field>
             </div>
 
-            {form.formState.errors.card_brand?.message && (
-              <p className="text-xs text-[#DC2626]">{form.formState.errors.card_brand.message}</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Total ARS (calculado)">
+                <Input type="number" value={totalArs ? Number(totalArs).toFixed(0) : ''} readOnly disabled />
+              </Field>
+              <Field label="Total USD (estimado)">
+                <Input
+                  type="number"
+                  value={typeof totalUsd === 'number' ? totalUsd.toFixed(2) : ''}
+                  readOnly
+                  disabled
+                />
+              </Field>
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-[#5B677A]">
+              <input type="checkbox" {...form.register('includes_cube_20w')} />
+              Incluye cubo 20W
+            </label>
+
+            {(form.formState.errors.card_brand?.message || form.formState.errors.fx_rate_used?.message) && (
+              <div className="space-y-1 text-xs text-[#DC2626]">
+                {form.formState.errors.card_brand?.message && <p>{form.formState.errors.card_brand.message}</p>}
+                {form.formState.errors.fx_rate_used?.message && <p>{form.formState.errors.fx_rate_used.message}</p>}
+              </div>
             )}
           </div>
         )}

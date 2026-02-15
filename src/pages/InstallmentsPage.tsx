@@ -17,9 +17,17 @@ export function InstallmentsPage() {
     queryFn: fetchInstallmentRules,
   })
 
-  const [price, setPrice] = useState('0')
+  const [priceUsd, setPriceUsd] = useState('0')
+  const [usdRate, setUsdRate] = useState('0')
   const [brand, setBrand] = useState('')
-  const [editRule, setEditRule] = useState({ card_brand: '', installments: '3', surcharge_pct: '0' })
+  const [channel, setChannel] = useState<'standard' | 'mercado_pago'>('standard')
+  const [mpExtraPct, setMpExtraPct] = useState('0')
+  const [editRule, setEditRule] = useState({
+    channel: 'standard',
+    card_brand: '',
+    installments: '3',
+    surcharge_pct: '0',
+  })
 
   const mutation = useMutation({
     mutationFn: upsertInstallmentRule,
@@ -27,14 +35,22 @@ export function InstallmentsPage() {
   })
 
   const tableRows = useMemo(() => {
-    const base = Number(price || 0)
+    const base = Number(priceUsd || 0) * Number(usdRate || 0)
+    const mpExtra = channel === 'mercado_pago' ? Number(mpExtraPct || 0) : 0
     return [3, 6, 9, 12].map((installments) => {
-      const rule = rules.find((r) => r.card_brand === brand && r.installments === installments)
-      const surcharge = rule?.surcharge_pct ?? 0
+      const byChannel =
+        rules.find(
+          (r) =>
+            r.card_brand === brand &&
+            r.installments === installments &&
+            (r.channel ?? 'standard') === channel,
+        ) ??
+        rules.find((r) => r.card_brand === brand && r.installments === installments)
+      const surcharge = (byChannel?.surcharge_pct ?? 0) + mpExtra
       const total = base * (1 + surcharge / 100)
-      return { installments, surcharge, total }
+      return { installments, surcharge, total, monthly: installments > 0 ? total / installments : 0 }
     })
-  }, [price, brand, rules])
+  }, [priceUsd, usdRate, brand, channel, mpExtraPct, rules])
 
   return (
     <div className="space-y-6">
@@ -45,22 +61,37 @@ export function InstallmentsPage() {
 
       <Card className="p-5">
         <h3 className="text-lg font-semibold text-[#0F172A]">Calculadora</h3>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <Field label="Precio ARS">
-            <Input value={price} onChange={(e) => setPrice(e.target.value)} />
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Field label="Precio equipo USD">
+            <Input value={priceUsd} onChange={(e) => setPriceUsd(e.target.value)} />
+          </Field>
+          <Field label="Dólar ARS">
+            <Input value={usdRate} onChange={(e) => setUsdRate(e.target.value)} />
           </Field>
           <Field label="Tarjeta">
             <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Visa / Master" />
           </Field>
+          <Field label="Canal">
+            <Select value={channel} onChange={(e) => setChannel(e.target.value as 'standard' | 'mercado_pago')}>
+              <option value="standard">Sin Mercado Pago</option>
+              <option value="mercado_pago">Con Mercado Pago</option>
+            </Select>
+          </Field>
+          {channel === 'mercado_pago' && (
+            <Field label="Cargo MP %">
+              <Input value={mpExtraPct} onChange={(e) => setMpExtraPct(e.target.value)} placeholder="Ej: 10" />
+            </Field>
+          )}
         </div>
 
         <div className="mt-4">
-          <Table headers={['Cuotas', 'Recargo', 'Total']}>
+          <Table headers={['Cuotas', 'Recargo', 'Total ARS', 'Cuota ARS']}>
             {tableRows.map((row) => (
               <tr key={row.installments}>
                 <td className="px-4 py-3 text-sm">{row.installments}</td>
                 <td className="px-4 py-3 text-sm">{row.surcharge}%</td>
                 <td className="px-4 py-3 text-sm">${row.total.toLocaleString('es-AR')}</td>
+                <td className="px-4 py-3 text-sm">${row.monthly.toLocaleString('es-AR')}</td>
               </tr>
             ))}
           </Table>
@@ -70,7 +101,16 @@ export function InstallmentsPage() {
       {profile?.role === 'admin' && (
         <Card className="p-5">
           <h3 className="text-lg font-semibold text-[#0F172A]">Reglas (admin)</h3>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
+            <Field label="Canal">
+              <Select
+                value={editRule.channel}
+                onChange={(e) => setEditRule({ ...editRule, channel: e.target.value })}
+              >
+                <option value="standard">Sin Mercado Pago</option>
+                <option value="mercado_pago">Con Mercado Pago</option>
+              </Select>
+            </Field>
             <Field label="Tarjeta">
               <Input
                 value={editRule.card_brand}
@@ -97,6 +137,7 @@ export function InstallmentsPage() {
             <Button
               onClick={() =>
                 mutation.mutate({
+                  channel: editRule.channel,
                   card_brand: editRule.card_brand,
                   installments: Number(editRule.installments),
                   surcharge_pct: Number(editRule.surcharge_pct),
@@ -108,9 +149,10 @@ export function InstallmentsPage() {
           </div>
 
           <div className="mt-4">
-            <Table headers={['Tarjeta', 'Cuotas', 'Recargo']}>
+            <Table headers={['Canal', 'Tarjeta', 'Cuotas', 'Recargo']}>
               {rules.map((rule) => (
                 <tr key={rule.id}>
+                  <td className="px-4 py-3 text-sm">{rule.channel === 'mercado_pago' ? 'Con MP' : 'Sin MP'}</td>
                   <td className="px-4 py-3 text-sm">{rule.card_brand}</td>
                   <td className="px-4 py-3 text-sm">{rule.installments}</td>
                   <td className="px-4 py-3 text-sm">{rule.surcharge_pct}%</td>

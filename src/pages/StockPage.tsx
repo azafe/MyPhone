@@ -5,7 +5,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import toast from 'react-hot-toast'
 import { deleteStockItem, fetchStock, setStockStatus, upsertStockItem } from '../services/stock'
-import type { StockItem } from '../types'
+import type { StockItem, StockStatus } from '../types'
 import { Button } from '../components/ui/Button'
 import { Modal } from '../components/ui/Modal'
 import { Field } from '../components/ui/Field'
@@ -40,7 +40,12 @@ const schema = z
     sale_price_usd: z.coerce.number().min(0.01),
     sale_price_ars: z.coerce.number().min(0),
     warranty_days: z.coerce.number().min(0).max(3650),
-    status: z.enum(['available', 'reserved', 'sold']).default('available'),
+    provider_name: z.string().optional(),
+    details: z.string().optional(),
+    received_at: z.string().optional(),
+    is_promo: z.boolean().default(false),
+    is_sealed: z.boolean().default(false),
+    status: z.enum(['available', 'reserved', 'sold', 'service_tech', 'drawer']).default('available'),
   })
   .superRefine((values, ctx) => {
     const isIphone = isAppleBrand(values.brand)
@@ -87,16 +92,47 @@ const conditionLabels: Record<string, string> = {
   outlet: 'Outlet',
 }
 
+type StockTabKey =
+  | 'available'
+  | 'outlet'
+  | 'used_premium'
+  | 'reserved'
+  | 'new_sealed'
+  | 'service_tech'
+  | 'drawer'
+  | 'sold'
+  | 'custom'
+
+const stockTabs: Array<{
+  key: Exclude<StockTabKey, 'custom'>
+  label: string
+  status?: StockStatus
+  category?: string
+  sealedOnly?: boolean
+}> = [
+  { key: 'available', label: 'Disponibles', status: 'available' },
+  { key: 'outlet', label: 'Outlet', status: 'available', category: 'outlet' },
+  { key: 'used_premium', label: 'Usados Premium', status: 'available', category: 'used_premium' },
+  { key: 'reserved', label: 'Reservados / Seña', status: 'reserved' },
+  { key: 'new_sealed', label: 'Nuevos sellados', status: 'available', category: 'new', sealedOnly: true },
+  { key: 'service_tech', label: 'Servicio técnico', status: 'service_tech' },
+  { key: 'drawer', label: 'Cajón', status: 'drawer' },
+  { key: 'sold', label: 'Vendidos', status: 'sold' },
+]
+
 export function StockPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const today = new Date().toISOString().slice(0, 10)
   const [filters, setFilters] = useState({
-    status: '',
+    status: 'available',
     category: '',
     query: '',
     condition: '',
     sort: 'newest',
+    promoOnly: false,
   })
+  const [activeTab, setActiveTab] = useState<StockTabKey>('available')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [criticalOnly, setCriticalOnly] = useState(false)
   const [open, setOpen] = useState(false)
@@ -113,6 +149,19 @@ export function StockPage() {
       window.clearTimeout(timeout)
     }
   }, [filters.query])
+
+  const applyTab = (tabKey: Exclude<StockTabKey, 'custom'>) => {
+    const tabConfig = stockTabs.find((tab) => tab.key === tabKey)
+    if (!tabConfig) return
+    setActiveTab(tabKey)
+    setFilters((prev) => ({
+      ...prev,
+      status: tabConfig.status ?? '',
+      category: tabConfig.category ?? '',
+      promoOnly: false,
+    }))
+    setCriticalOnly(false)
+  }
 
   const stockQueryKey = useMemo(
     () =>
@@ -164,7 +213,17 @@ export function StockPage() {
   }, [data])
 
   const visibleItems = useMemo(() => {
-    const base = criticalOnly ? data.filter((item) => criticalStats.criticalIds.has(item.id)) : data
+    let base = criticalOnly ? data.filter((item) => criticalStats.criticalIds.has(item.id)) : data
+
+    if (filters.promoOnly) {
+      base = base.filter((item) => Boolean(item.is_promo) || item.category === 'promotion')
+    }
+
+    const activeTabConfig = stockTabs.find((tab) => tab.key === activeTab)
+    if (activeTabConfig?.sealedOnly) {
+      base = base.filter((item) => Boolean(item.is_sealed))
+    }
+
     const sorted = [...base]
 
     sorted.sort((a, b) => {
@@ -186,10 +245,17 @@ export function StockPage() {
     })
 
     return sorted
-  }, [criticalOnly, criticalStats.criticalIds, data, filters.sort])
+  }, [activeTab, criticalOnly, criticalStats.criticalIds, data, filters.promoOnly, filters.sort])
 
   const hasActiveFilters = Boolean(
-    filters.status || filters.category || filters.condition || filters.query.trim() || criticalOnly,
+    activeTab !== 'available' ||
+      filters.status !== 'available' ||
+      filters.category ||
+      filters.condition ||
+      filters.query.trim() ||
+      filters.sort !== 'newest' ||
+      filters.promoOnly ||
+      criticalOnly,
   )
 
   const form = useForm<FormValues>({
@@ -202,6 +268,11 @@ export function StockPage() {
       battery_pct: 85,
       warranty_days: 90,
       imei_later: false,
+      provider_name: '',
+      details: '',
+      received_at: today,
+      is_promo: false,
+      is_sealed: false,
     },
   })
 
@@ -250,6 +321,7 @@ export function StockPage() {
   const color = form.watch('color')
   const iphoneModel = form.watch('iphone_model')
   const fxRate = form.watch('fx_rate_used')
+  const isSealed = form.watch('is_sealed')
 
   useEffect(() => {
     if (isAppleBrand(brand) && !form.getValues('iphone_model')) {
@@ -277,6 +349,12 @@ export function StockPage() {
       form.setValue('model_other', '', { shouldValidate: true })
     }
   }, [iphoneModel, form])
+
+  useEffect(() => {
+    if (category !== 'new' && isSealed) {
+      form.setValue('is_sealed', false, { shouldValidate: true })
+    }
+  }, [category, isSealed, form])
 
   useEffect(() => {
     if (isConditionNew) {
@@ -326,6 +404,11 @@ export function StockPage() {
         battery_pct: 85,
         warranty_days: 90,
         imei_later: false,
+        provider_name: '',
+        details: '',
+        received_at: today,
+        is_promo: false,
+        is_sealed: false,
         fx_rate_used: form.getValues('fx_rate_used'),
       })
     },
@@ -382,6 +465,11 @@ export function StockPage() {
       sale_price_ars: Number(saleArs || 0),
       warranty_days: parsed.warranty_days,
       status: parsed.status,
+      provider_name: parsed.provider_name?.trim() || null,
+      details: parsed.details?.trim() || null,
+      received_at: parsed.received_at || null,
+      is_promo: parsed.is_promo || parsed.category === 'promotion',
+      is_sealed: parsed.is_sealed,
     })
   }
 
@@ -413,6 +501,12 @@ export function StockPage() {
       sale_price_ars: item.sale_price_ars,
       warranty_days: item.warranty_days ?? 90,
       status: item.status,
+      provider_name: (item as StockItem & { provider_name?: string | null }).provider_name ?? '',
+      details: (item as StockItem & { details?: string | null }).details ?? '',
+      received_at:
+        ((item as StockItem & { received_at?: string | null }).received_at ?? item.created_at ?? today).slice(0, 10),
+      is_promo: Boolean((item as StockItem & { is_promo?: boolean | null }).is_promo || item.category === 'promotion'),
+      is_sealed: Boolean((item as StockItem & { is_sealed?: boolean | null }).is_sealed),
     })
     setOpen(true)
     setDetailsOpen(false)
@@ -429,6 +523,11 @@ export function StockPage() {
       battery_pct: 85,
       warranty_days: 90,
       imei_later: false,
+      provider_name: '',
+      details: '',
+      received_at: today,
+      is_promo: false,
+      is_sealed: false,
       fx_rate_used: currentFx > 0 ? currentFx : undefined,
     })
   }
@@ -438,25 +537,62 @@ export function StockPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Stock</h2>
-          <p className="text-sm text-[#5B677A]">Gestión rápida de equipos disponibles.</p>
+          <p className="text-sm text-[#5B677A]">Equipos, proveedor, IMEI, fecha de ingreso y estado operativo.</p>
         </div>
         <Button onClick={handleAddNewEquipmentClick}>Agregar equipo</Button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E6EBF2] bg-white p-2">
+        {stockTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => applyTab(tab.key)}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition',
+              activeTab === tab.key
+                ? 'bg-[rgba(11,74,162,0.12)] text-[#0B4AA2]'
+                : 'text-[#5B677A] hover:bg-[#F8FAFC]',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-3 md:grid-cols-6">
         <Input
-          placeholder="Buscar marca, modelo o IMEI"
+          placeholder="Buscar marca, modelo, IMEI o proveedor"
           value={filters.query}
-          onChange={(e) => setFilters({ ...filters, query: e.target.value })}
+          onChange={(e) =>
+            setFilters({
+              ...filters,
+              query: e.target.value,
+            })
+          }
           className="md:col-span-2"
         />
-        <Select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+        <Select
+          value={filters.status}
+          onChange={(e) => {
+            setActiveTab('custom')
+            setFilters({ ...filters, status: e.target.value })
+          }}
+        >
           <option value="">Estado</option>
           <option value="available">Disponible</option>
           <option value="reserved">Reservado</option>
           <option value="sold">Vendido</option>
+          <option value="service_tech">Servicio técnico</option>
+          <option value="drawer">Cajón</option>
         </Select>
-        <Select value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })}>
+        <Select
+          value={filters.category}
+          onChange={(e) => {
+            setActiveTab('custom')
+            setFilters({ ...filters, category: e.target.value })
+          }}
+        >
           <option value="">Categoría</option>
           <option value="new">Nuevo</option>
           <option value="promotion">Promoción</option>
@@ -491,17 +627,27 @@ export function StockPage() {
         <p className="text-xs text-[#5B677A]">
           {isLoading ? 'Buscando...' : `Mostrando ${visibleItems.length} de ${data.length} equipos`}
         </p>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!hasActiveFilters}
-          onClick={() => {
-            setFilters({ status: '', category: '', query: '', condition: '', sort: 'newest' })
-            setCriticalOnly(false)
-          }}
-        >
-          Limpiar filtros
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={filters.promoOnly ? 'primary' : 'secondary'}
+            onClick={() => setFilters((prev) => ({ ...prev, promoOnly: !prev.promoOnly }))}
+          >
+            Solo promoción
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!hasActiveFilters}
+            onClick={() => {
+              setActiveTab('available')
+              setFilters({ status: 'available', category: '', query: '', condition: '', sort: 'newest', promoOnly: false })
+              setCriticalOnly(false)
+            }}
+          >
+            Limpiar filtros
+          </Button>
+        </div>
       </div>
 
       {(criticalStats.missingPrice > 0 || criticalStats.missingImei > 0 || criticalStats.lowMargin > 0) && (
@@ -660,6 +806,34 @@ export function StockPage() {
                   </Button>
                 </div>
               </Field>
+              <Field label="Estado de inventario">
+                <Select {...form.register('status')}>
+                  <option value="available">Disponible</option>
+                  <option value="reserved">Reservado / Señado</option>
+                  <option value="service_tech">Servicio técnico</option>
+                  <option value="drawer">Cajón</option>
+                  <option value="sold">Vendido</option>
+                </Select>
+              </Field>
+              <Field label="Proveedor">
+                <Input className="h-11" {...form.register('provider_name')} placeholder="Proveedor o fuente de compra" />
+              </Field>
+              <Field label="Fecha de ingreso">
+                <Input className="h-11" type="date" {...form.register('received_at')} />
+              </Field>
+              <Field label="Detalle">
+                <Input className="h-11" {...form.register('details')} placeholder="Observaciones del equipo" />
+              </Field>
+              <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-3 text-xs text-[#5B677A]">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" {...form.register('is_promo')} />
+                  Marcar como promoción (resaltado rojo en listado)
+                </label>
+                <label className="mt-2 flex items-center gap-2">
+                  <input type="checkbox" {...form.register('is_sealed')} disabled={category !== 'new'} />
+                  Nuevo sellado
+                </label>
+              </div>
               <div className="md:col-span-2">
                 <Field label="IMEI (opcional)">
                   <Input

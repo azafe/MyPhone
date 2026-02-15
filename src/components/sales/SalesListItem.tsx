@@ -34,8 +34,9 @@ export function SalesListItem({ sale, onClick }: SalesListItemProps) {
     sale.customer?.name ||
     sale.customer?.full_name ||
     'Cliente sin nombre'
-  const dateLabel = sale.created_at
-    ? new Date(sale.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+  const saleDateSource = sale.sale_date ?? sale.created_at
+  const dateLabel = saleDateSource
+    ? new Date(saleDateSource).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
     : '—'
   const equipmentName = [sale.stock_brand, sale.stock_model].filter(Boolean).join(' ')
   const equipmentMeta = [sale.stock_storage_gb ? `${sale.stock_storage_gb}GB` : null, sale.stock_color]
@@ -44,6 +45,11 @@ export function SalesListItem({ sale, onClick }: SalesListItemProps) {
   const imeiSuffix = sale.stock_imei ? sale.stock_imei.slice(-4) : null
   const statusLabel = sale.status ? statusLabels[sale.status] ?? sale.status : null
   const statusStyle = sale.status ? statusStyles[sale.status] ?? 'bg-[rgba(91,103,122,0.16)] text-[#334155]' : ''
+  const currency = sale.currency ?? 'ARS'
+  const totalMain =
+    currency === 'USD' && typeof sale.total_usd === 'number'
+      ? `USD ${sale.total_usd.toFixed(2)}`
+      : `ARS $${sale.total_ars.toLocaleString('es-AR')}`
 
   return (
     <button
@@ -72,15 +78,22 @@ export function SalesListItem({ sale, onClick }: SalesListItemProps) {
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#5B677A]">
             <span>{dateLabel}</span>
             <Badge label={methodLabels[sale.method] ?? sale.method} />
+            {sale.includes_cube_20w ? <Badge label="Cubo 20W" tone="valued" /> : null}
             {sale.seller_name || sale.seller_full_name ? (
               <span>Vendedor: {sale.seller_name || sale.seller_full_name}</span>
             ) : null}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2 text-right">
-          <div className="text-sm font-semibold text-[#0F172A]">
-            ${sale.total_ars.toLocaleString('es-AR')}
-          </div>
+          <div className="text-sm font-semibold text-[#0F172A]">{totalMain}</div>
+          {currency === 'USD' ? (
+            <div className="text-[11px] text-[#5B677A]">ARS ${sale.total_ars.toLocaleString('es-AR')}</div>
+          ) : null}
+          {typeof sale.balance_due_ars === 'number' && sale.balance_due_ars > 0 ? (
+            <div className="text-[11px] font-medium text-[#DC2626]">
+              Saldo pendiente: ARS ${sale.balance_due_ars.toLocaleString('es-AR')}
+            </div>
+          ) : null}
           {statusLabel ? <span className={`rounded-full px-2 py-0.5 text-[11px] ${statusStyle}`}>{statusLabel}</span> : null}
         </div>
       </div>

@@ -89,7 +89,7 @@ export function SalesPage() {
         open={detailsOpen}
         sale={selected ?? null}
         onClose={() => setDetailsOpen(false)}
-        onEdit={() => selected && navigate(`/sales/new?stock=${selected.stock_item_id}`)}
+        onEdit={() => selected && navigate(selected.stock_item_id ? `/sales/new?stock=${selected.stock_item_id}` : '/sales/new')}
         onDelete={() => setConfirmDeleteOpen(true)}
       />
 

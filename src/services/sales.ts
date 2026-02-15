@@ -40,10 +40,16 @@ export type CreateSalePayload = {
   customer?: { name: string; phone: string }
   customer_id?: string
   payment_method?: string
+  currency?: 'ARS' | 'USD'
+  fx_rate_used?: number | null
+  total_usd?: number | null
   card_brand?: string | null
   installments?: number | null
   surcharge_pct?: number | null
   deposit_ars?: number | null
+  balance_due_ars?: number | null
+  notes?: string | null
+  includes_cube_20w?: boolean
   total_ars: number
   items: Array<{ stock_item_id: string; qty: number; sale_price_ars: number }>
   payment?: {
