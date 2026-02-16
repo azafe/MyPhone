@@ -29,6 +29,7 @@ const statusStyles: Record<string, string> = {
 }
 
 export function SalesListItem({ sale, onClick }: SalesListItemProps) {
+  const methodKey = sale.method ?? sale.payment_method ?? 'cash'
   const customer =
     sale.customer_name ||
     sale.customer?.name ||
@@ -77,7 +78,7 @@ export function SalesListItem({ sale, onClick }: SalesListItemProps) {
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#5B677A]">
             <span>{dateLabel}</span>
-            <Badge label={methodLabels[sale.method] ?? sale.method} />
+            <Badge label={methodLabels[methodKey] ?? methodKey} />
             {sale.includes_cube_20w ? <Badge label="Cubo 20W" tone="valued" /> : null}
             {sale.seller_name || sale.seller_full_name ? (
               <span>Vendedor: {sale.seller_name || sale.seller_full_name}</span>

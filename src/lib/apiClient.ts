@@ -1,25 +1,23 @@
-import { supabase } from './supabase'
-
-// Frontend always calls same-origin /api to avoid browser CORS issues.
-// Netlify handles prod proxy and Vite handles dev proxy.
-const apiBaseUrl = ''
+const apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '') ?? ''
+export const AUTH_TOKEN_STORAGE_KEY = 'myphone_auth_token'
 
 type ApiOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   headers?: Record<string, string>
+  auth?: boolean
 }
 
 export async function apiClient<T>(path: string, options: ApiOptions = {}): Promise<T> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) : null
+  const requiresAuth = options.auth ?? true
+  const url = /^https?:\/\//.test(path) ? path : `${apiBaseUrl}${path}`
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(url, {
     method: options.method ?? (options.body ? 'POST' : 'GET'),
     headers: {
       'Content-Type': 'application/json',
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      ...(requiresAuth && token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers ?? {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,

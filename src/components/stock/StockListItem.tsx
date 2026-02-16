@@ -17,6 +17,8 @@ type StockListItemProps = {
 }
 
 export function StockListItem({ item, onClick }: StockListItemProps) {
+  const categoryKey = item.category ?? ''
+  const statusKey = item.status ?? item.state ?? 'new'
   const saleUsd =
     item.sale_price_usd ??
     (item.sale_price_ars && item.fx_rate_used ? Number(item.sale_price_ars) / Number(item.fx_rate_used) : null)
@@ -75,7 +77,7 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
               </span>
             )}
           </div>
-          <div className="mt-2 text-xs text-[#5B677A]">{categoryLabel[item.category] ?? item.category}</div>
+          <div className="mt-2 text-xs text-[#5B677A]">{(categoryLabel[categoryKey] ?? categoryKey) || '—'}</div>
           <div className="mt-1 text-xs text-[#5B677A]">
             Ingreso: {receivedLabel}
             {item.provider_name ? ` · Proveedor: ${item.provider_name}` : ''}
@@ -92,7 +94,7 @@ export function StockListItem({ item, onClick }: StockListItemProps) {
             {item.sale_price_ars ? `ARS $${item.sale_price_ars.toLocaleString('es-AR')}` : 'ARS —'}
           </div>
           <div className="mt-2">
-            <Badge label={statusLabel[item.status] ?? item.status} tone={item.status} />
+            <Badge label={statusLabel[statusKey] ?? statusKey} tone={statusKey} />
           </div>
           {item.is_promo && (
             <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#DC2626]">

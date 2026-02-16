@@ -1,28 +1,26 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
-import { UserMenu } from './UserMenu'
 import { cn } from '../../lib/utils'
 import { useState, type ReactNode } from 'react'
 import logo from '../../assets/myphone.png'
+import { UserMenu } from './UserMenu'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { to: '/stock', label: 'Stock', icon: 'box' },
   { to: '/sales', label: 'Ventas', icon: 'sale' },
   { to: '/tradeins', label: 'Permutas', icon: 'swap' },
-  { to: '/installments', label: 'Cuotas', icon: 'card' },
   { to: '/warranties', label: 'Garantías', icon: 'shield' },
-  { to: '/finance', label: 'Finanzas', icon: 'chart' },
+  { to: '/plan-canje', label: 'Plan Canje', icon: 'table' },
+  { to: '/calculator', label: 'Calculadora', icon: 'card' },
 ]
 
-const primaryNav = [
+const bottomNavItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { to: '/stock', label: 'Stock', icon: 'box' },
   { to: '/sales/new', label: 'Nueva', icon: 'plus' },
   { to: '/sales', label: 'Ventas', icon: 'sale' },
-  { to: '/finance', label: 'Finanzas', icon: 'chart' },
+  { to: '/calculator', label: 'Calc', icon: 'card' },
 ]
-
 
 const icons: Record<string, ReactNode> = {
   grid: (
@@ -48,23 +46,23 @@ const icons: Record<string, ReactNode> = {
       <path d="M17 17H7l3 3" />
     </svg>
   ),
-  card: (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="3" y="6" width="18" height="12" rx="2" />
-      <path d="M3 10h18" />
-    </svg>
-  ),
   shield: (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
       <path d="M12 3l7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6z" />
     </svg>
   ),
-  chart: (
+  table: (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M4 19h16" />
-      <path d="M6 16V8" />
-      <path d="M12 16V5" />
-      <path d="M18 16v-6" />
+      <path d="M4 5h16v14H4z" />
+      <path d="M4 10h16" />
+      <path d="M10 10v9" />
+      <path d="M16 10v9" />
+    </svg>
+  ),
+  card: (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="3" y="6" width="18" height="12" rx="2" />
+      <path d="M3 10h18" />
     </svg>
   ),
   plus: (
@@ -73,22 +71,15 @@ const icons: Record<string, ReactNode> = {
       <path d="M5 12h14" />
     </svg>
   ),
-  users: (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M16 11a4 4 0 1 0-8 0" />
-      <path d="M4 21c1.5-4 6-6 8-6s6.5 2 8 6" />
-    </svg>
-  ),
 }
 
 export function AppLayout() {
-  const { profile } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] text-[#0F172A]">
       <header className="sticky top-0 z-40 border-b border-[#E6EBF2] bg-white/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center gap-4 px-4">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-4 px-4">
           <div className="flex flex-1 items-center justify-start gap-3 md:hidden">
             <img src={logo} alt="MyPhone" className="h-6 w-auto object-contain" />
           </div>
@@ -99,30 +90,22 @@ export function AppLayout() {
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-[1200px] gap-6 px-4 py-6">
+      <div className="mx-auto flex max-w-[1280px] gap-6 px-4 py-6">
         <aside
           className={cn(
             'hidden flex-shrink-0 flex-col rounded-2xl border border-[#E6EBF2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)] md:flex',
-            collapsed ? 'w-20' : 'w-[280px]'
+            collapsed ? 'w-20' : 'w-[280px]',
           )}
         >
           <div className="flex h-[80px] items-center justify-between border-b border-[#E6EBF2] px-5">
             {collapsed ? (
               <div className="flex h-full w-full items-center justify-center">
-                <img
-                  src={logo}
-                  alt="MyPhone"
-                  className="h-10 w-10 rounded-xl object-cover"
-                />
+                <img src={logo} alt="MyPhone" className="h-10 w-10 rounded-xl object-cover" />
               </div>
             ) : (
               <div className="flex flex-col">
-                <img
-                  src={logo}
-                  alt="MyPhone"
-                  className="h-10 w-28 object-contain"
-                />
-                <span className="mt-1 text-xs text-[#5B677A]">Sistema de gestión</span>
+                <img src={logo} alt="MyPhone" className="h-10 w-28 object-contain" />
+                <span className="mt-1 text-xs text-[#5B677A]">MVP operativo</span>
               </div>
             )}
             <button
@@ -135,7 +118,9 @@ export function AppLayout() {
           </div>
 
           <nav className="mt-4 space-y-1 px-4 pb-4">
-            {!collapsed && <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Secciones</p>}
+            {!collapsed && (
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Secciones</p>
+            )}
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -143,7 +128,7 @@ export function AppLayout() {
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-[#5B677A] transition duration-200 hover:bg-[#F1F5F9]',
-                    isActive && 'border-l-2 border-[#0B4AA2] bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]'
+                    isActive && 'border-l-2 border-[#0B4AA2] bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]',
                   )
                 }
               >
@@ -151,20 +136,6 @@ export function AppLayout() {
                 {!collapsed && <span>{item.label}</span>}
               </NavLink>
             ))}
-            {profile?.role === 'admin' && (
-              <NavLink
-                to="/admin/users"
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-[#5B677A] transition duration-200 hover:bg-[#F1F5F9]',
-                    isActive && 'border-l-2 border-[#0B4AA2] bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]'
-                  )
-                }
-              >
-                <span className="text-[#0B4AA2]">{icons.users}</span>
-                {!collapsed && <span>Usuarios</span>}
-              </NavLink>
-            )}
           </nav>
         </aside>
 
@@ -175,14 +146,14 @@ export function AppLayout() {
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E6EBF2] bg-white/90 backdrop-blur md:hidden">
         <div className="flex items-center justify-between gap-1 px-3 py-2 text-[11px]">
-          {primaryNav.map((item) => (
+          {bottomNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
                   'flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 font-medium text-[#5B677A] transition',
-                  isActive && 'bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]'
+                  isActive && 'bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]',
                 )
               }
             >

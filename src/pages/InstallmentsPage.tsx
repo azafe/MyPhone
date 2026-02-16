@@ -14,7 +14,7 @@ export function InstallmentsPage() {
   const { profile } = useAuth()
   const { data: rules = [] } = useQuery({
     queryKey: ['installment_rules'],
-    queryFn: fetchInstallmentRules,
+    queryFn: () => fetchInstallmentRules(),
   })
 
   const [priceUsd, setPriceUsd] = useState('0')

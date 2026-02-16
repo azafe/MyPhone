@@ -1,970 +1,503 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
-import { Controller, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { deleteStockItem, fetchStock, setStockStatus, upsertStockItem } from '../services/stock'
-import type { StockItem, StockStatus } from '../types'
+import { createStockItem, fetchStock, reserveStockItem, setStockPromo, setStockState } from '../services/stock'
+import type { StockItem, StockState } from '../types'
 import { Button } from '../components/ui/Button'
-import { Modal } from '../components/ui/Modal'
 import { Field } from '../components/ui/Field'
 import { Input } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 import { Select } from '../components/ui/Select'
-import { cn } from '../lib/utils'
-import { useNavigate } from 'react-router-dom'
-import { IphoneModelSelector, IPHONE_MODELS } from '../components/ui/IphoneModelSelector'
-import { StockListItem } from '../components/stock/StockListItem'
-import { StockItemDetailsModal } from '../components/stock/StockItemDetailsModal'
+import { Table } from '../components/ui/Table'
 
-const isAppleBrand = (brand?: string | null) => (brand ?? '').trim().toLowerCase() === 'apple'
+const stateOptions: Array<{ value: StockState; label: string }> = [
+  { value: 'outlet', label: 'Outlet' },
+  { value: 'used_premium', label: 'Usados Premium' },
+  { value: 'reserved', label: 'Reserva' },
+  { value: 'deposit', label: 'Seña' },
+  { value: 'new', label: 'Nuevo' },
+  { value: 'drawer', label: 'Cajón' },
+  { value: 'service_tech', label: 'Servicio Técnico' },
+  { value: 'sold', label: 'Vendido' },
+]
 
-const schema = z
-  .object({
-    id: z.string().optional(),
-    category: z.enum(['new', 'promotion', 'outlet', 'used_premium']),
-    brand: z.string().min(1),
-    model: z.string().optional(),
-    iphone_model: z.string().optional(),
-    model_other: z.string().optional(),
-    storage_gb: z.coerce.number().optional(),
-    color: z.string().optional(),
-    color_other: z.string().optional(),
-    imei: z.string().optional(),
-    imei_later: z.boolean().default(false),
-    condition: z.enum(['new', 'like_new', 'used', 'outlet']),
-    battery_pct: z.coerce.number().min(0).max(100),
-    purchase_usd: z.coerce.number().min(0.01),
-    fx_rate_used: z.coerce.number().min(0.01),
-    purchase_ars: z.coerce.number().min(0),
-    sale_price_usd: z.coerce.number().min(0.01),
-    sale_price_ars: z.coerce.number().min(0),
-    warranty_days: z.coerce.number().min(0).max(3650),
-    provider_name: z.string().optional(),
-    details: z.string().optional(),
-    received_at: z.string().optional(),
-    is_promo: z.boolean().default(false),
-    is_sealed: z.boolean().default(false),
-    status: z.enum(['available', 'reserved', 'sold', 'service_tech', 'drawer']).default('available'),
-  })
-  .superRefine((values, ctx) => {
-    const isIphone = isAppleBrand(values.brand)
-    if (isIphone) {
-      if (!values.iphone_model) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Seleccioná un modelo de iPhone', path: ['iphone_model'] })
-      }
-      if (values.iphone_model === 'other' && !values.model_other) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Especificá el modelo', path: ['model_other'] })
-      }
-      if (!values.storage_gb) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Seleccioná la capacidad', path: ['storage_gb'] })
-      }
-      if (!values.color) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Seleccioná el color', path: ['color'] })
-      }
-      if (values.color === 'Otro' && !values.color_other) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Especificá el color', path: ['color_other'] })
-      }
-      if (!values.imei_later) {
-        if (!values.imei) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'El IMEI es requerido', path: ['imei'] })
-        } else if (!/^\d{4}$/.test(values.imei)) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'IMEI inválido (4 dígitos)', path: ['imei'] })
-        }
-      }
-    } else {
-      if (!values.model) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Ingresá el modelo', path: ['model'] })
-      }
-    }
-
-    if (values.condition === 'new' && values.battery_pct !== 100) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Batería debe ser 100%', path: ['battery_pct'] })
-    }
-  })
-
-type FormValues = z.input<typeof schema>
-
-const conditionLabels: Record<string, string> = {
-  new: 'Nuevo',
-  like_new: 'Como nuevo',
-  used: 'Usado',
-  outlet: 'Outlet',
+const statusToState: Record<string, StockState> = {
+  available: 'new',
+  reserved: 'reserved',
+  sold: 'sold',
+  drawer: 'drawer',
+  service_tech: 'service_tech',
 }
 
-type StockTabKey =
-  | 'available'
-  | 'outlet'
-  | 'used_premium'
-  | 'reserved'
-  | 'new_sealed'
-  | 'service_tech'
-  | 'drawer'
-  | 'sold'
-  | 'custom'
+function resolveState(item: StockItem): StockState {
+  if (item.state) return item.state
+  const status = item.status ? String(item.status) : ''
+  return statusToState[status] ?? 'new'
+}
 
-const stockTabs: Array<{
-  key: Exclude<StockTabKey, 'custom'>
-  label: string
-  status?: StockStatus
-  category?: string
-  sealedOnly?: boolean
-}> = [
-  { key: 'available', label: 'Disponibles', status: 'available' },
-  { key: 'outlet', label: 'Outlet', status: 'available', category: 'outlet' },
-  { key: 'used_premium', label: 'Usados Premium', status: 'available', category: 'used_premium' },
-  { key: 'reserved', label: 'Reservados / Seña', status: 'reserved' },
-  { key: 'new_sealed', label: 'Nuevos sellados', status: 'available', category: 'new', sealedOnly: true },
-  { key: 'service_tech', label: 'Servicio técnico', status: 'service_tech' },
-  { key: 'drawer', label: 'Cajón', status: 'drawer' },
-  { key: 'sold', label: 'Vendidos', status: 'sold' },
-]
+function formatMoney(value?: number | null) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '—'
+  return `$${value.toLocaleString('es-AR')}`
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('es-AR')
+}
+
+function asPositiveNumber(value: string) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+const createSchema = z.object({
+  state: z.enum(stateOptions.map((option) => option.value) as [StockState, ...StockState[]]),
+  model: z.string().min(1, 'Modelo requerido'),
+  storage_gb: z.coerce.number().int().min(1, 'GB debe ser mayor a 0'),
+  battery_pct: z.coerce.number().min(0, '0 mínimo').max(100, '100 máximo'),
+  color: z.string().optional(),
+  sale_price_ars: z.coerce.number().min(1, 'Precio requerido'),
+  details: z.string().optional(),
+  imei: z.string().min(4, 'IMEI requerido'),
+  received_at: z.string().min(1, 'Fecha requerida'),
+  provider_name: z.string().optional(),
+  is_promo: z.boolean().default(false),
+})
+
+const reserveSchema = z.object({
+  reserve_type: z.enum(['reserva', 'sena']),
+  reserve_amount_ars: z.coerce.number().optional().nullable(),
+  reserve_notes: z.string().optional(),
+})
 
 export function StockPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const today = new Date().toISOString().slice(0, 10)
-  const [filters, setFilters] = useState({
-    status: 'available',
-    category: '',
-    query: '',
-    condition: '',
-    sort: 'newest',
-    promoOnly: false,
-  })
-  const [activeTab, setActiveTab] = useState<StockTabKey>('available')
-  const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [criticalOnly, setCriticalOnly] = useState(false)
-  const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState<StockItem | null>(null)
-  const [detailsOpen, setDetailsOpen] = useState(false)
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  const fxStorageKey = 'myphone_fx_rate'
+  const [stateFilter, setStateFilter] = useState('')
+  const [modelFilter, setModelFilter] = useState('')
+  const [storageFilter, setStorageFilter] = useState('')
+  const [batteryFilter, setBatteryFilter] = useState('')
+  const [promoFilter, setPromoFilter] = useState<'all' | 'promo' | 'no_promo'>('all')
+  const [providerFilter, setProviderFilter] = useState('')
+  const [newOpen, setNewOpen] = useState(false)
+  const [reserveOpen, setReserveOpen] = useState(false)
+  const [reserveTarget, setReserveTarget] = useState<StockItem | null>(null)
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setDebouncedQuery(filters.query.trim())
-    }, 300)
-    return () => {
-      window.clearTimeout(timeout)
-    }
-  }, [filters.query])
-
-  const applyTab = (tabKey: Exclude<StockTabKey, 'custom'>) => {
-    const tabConfig = stockTabs.find((tab) => tab.key === tabKey)
-    if (!tabConfig) return
-    setActiveTab(tabKey)
-    setFilters((prev) => ({
-      ...prev,
-      status: tabConfig.status ?? '',
-      category: tabConfig.category ?? '',
-      promoOnly: false,
-    }))
-    setCriticalOnly(false)
-  }
-
-  const stockQueryKey = useMemo(
-    () =>
-      [
-        'stock',
-        {
-          status: filters.status,
-          category: filters.category,
-          query: debouncedQuery,
-          condition: filters.condition,
-        },
-      ] as const,
-    [filters.status, filters.category, debouncedQuery, filters.condition],
-  )
-
-  const { data = [], isLoading } = useQuery({
-    queryKey: stockQueryKey,
+  const stockQuery = useQuery({
+    queryKey: ['stock', stateFilter, modelFilter, storageFilter, batteryFilter, promoFilter, providerFilter],
     queryFn: () =>
       fetchStock({
-        status: filters.status ? (filters.status as StockItem['status']) : undefined,
-        category: filters.category || undefined,
-        query: debouncedQuery || undefined,
-        condition: filters.condition || undefined,
+        state: stateFilter || undefined,
+        model: modelFilter || undefined,
+        storage_gb: storageFilter ? Number(storageFilter) : undefined,
+        battery_min: batteryFilter ? Number(batteryFilter) : undefined,
+        promo: promoFilter === 'all' ? undefined : promoFilter === 'promo',
+        provider: providerFilter || undefined,
       }),
   })
 
-  const criticalStats = useMemo(() => {
-    const availableItems = data.filter((item) => item.status === 'available')
-    const missingPrice = availableItems.filter((item) => !item.sale_price_ars || item.sale_price_ars <= 0)
-    const missingImei = availableItems.filter((item) => isAppleBrand(item.brand) && !item.imei)
-    const lowMargin = availableItems.filter((item) => {
-      if (!item.purchase_ars || !item.sale_price_ars) return false
-      const margin = (item.sale_price_ars - item.purchase_ars) / item.sale_price_ars
-      return margin < 0.08
+  const stockItems = stockQuery.data ?? []
+
+  const filteredStock = useMemo(() => {
+    return stockItems.filter((item) => {
+      if (modelFilter && !String(item.model ?? '').toLowerCase().includes(modelFilter.toLowerCase())) return false
+      if (providerFilter && !String(item.provider_name ?? '').toLowerCase().includes(providerFilter.toLowerCase())) return false
+      if (storageFilter && Number(item.storage_gb ?? 0) !== Number(storageFilter)) return false
+      if (batteryFilter && Number(item.battery_pct ?? 0) < Number(batteryFilter)) return false
+      if (promoFilter === 'promo' && !item.is_promo) return false
+      if (promoFilter === 'no_promo' && item.is_promo) return false
+      if (stateFilter && resolveState(item) !== stateFilter) return false
+      return true
     })
+  }, [batteryFilter, modelFilter, promoFilter, providerFilter, stateFilter, stockItems, storageFilter])
 
-    const criticalIds = new Set<string>([
-      ...missingPrice.map((item) => item.id),
-      ...missingImei.map((item) => item.id),
-      ...lowMargin.map((item) => item.id),
-    ])
-
-    return {
-      missingPrice: missingPrice.length,
-      missingImei: missingImei.length,
-      lowMargin: lowMargin.length,
-      criticalIds,
-    }
-  }, [data])
-
-  const visibleItems = useMemo(() => {
-    let base = criticalOnly ? data.filter((item) => criticalStats.criticalIds.has(item.id)) : data
-
-    if (filters.promoOnly) {
-      base = base.filter((item) => Boolean(item.is_promo) || item.category === 'promotion')
-    }
-
-    const activeTabConfig = stockTabs.find((tab) => tab.key === activeTab)
-    if (activeTabConfig?.sealedOnly) {
-      base = base.filter((item) => Boolean(item.is_sealed))
-    }
-
-    const sorted = [...base]
-
-    sorted.sort((a, b) => {
-      if (filters.sort === 'oldest') {
-        return new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()
-      }
-      if (filters.sort === 'price_desc') {
-        return Number(b.sale_price_ars || 0) - Number(a.sale_price_ars || 0)
-      }
-      if (filters.sort === 'price_asc') {
-        return Number(a.sale_price_ars || 0) - Number(b.sale_price_ars || 0)
-      }
-      if (filters.sort === 'margin_desc') {
-        const marginA = a.sale_price_ars && a.purchase_ars ? (a.sale_price_ars - a.purchase_ars) / a.sale_price_ars : -Infinity
-        const marginB = b.sale_price_ars && b.purchase_ars ? (b.sale_price_ars - b.purchase_ars) / b.sale_price_ars : -Infinity
-        return marginB - marginA
-      }
-      return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-    })
-
-    return sorted
-  }, [activeTab, criticalOnly, criticalStats.criticalIds, data, filters.promoOnly, filters.sort])
-
-  const hasActiveFilters = Boolean(
-    activeTab !== 'available' ||
-      filters.status !== 'available' ||
-      filters.category ||
-      filters.condition ||
-      filters.query.trim() ||
-      filters.sort !== 'newest' ||
-      filters.promoOnly ||
-      criticalOnly,
-  )
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  const newForm = useForm({
+    resolver: zodResolver(createSchema),
     defaultValues: {
-      status: 'available',
-      category: 'new',
-      brand: '',
-      condition: 'used',
-      battery_pct: 85,
-      warranty_days: 90,
-      imei_later: false,
-      provider_name: '',
-      details: '',
-      received_at: today,
+      state: 'new',
+      battery_pct: 100,
+      storage_gb: 128,
+      sale_price_ars: 0,
+      received_at: new Date().toISOString().slice(0, 10),
       is_promo: false,
-      is_sealed: false,
     },
   })
 
-  const watched = form.watch([
-    'purchase_usd',
-    'fx_rate_used',
-    'purchase_ars',
-    'sale_price_usd',
-    'sale_price_ars',
-    'category',
-    'condition',
-  ]) as Array<number | string | null | undefined>
+  const reserveForm = useForm({
+    resolver: zodResolver(reserveSchema),
+    defaultValues: {
+      reserve_type: 'reserva',
+      reserve_amount_ars: null,
+      reserve_notes: '',
+    },
+  })
 
-  const purchaseArs = useMemo(() => {
-    const [purchaseUsd, fx] = watched
-    const usd = Number(purchaseUsd || 0)
-    const rate = Number(fx || 0)
-    if (!usd || !rate) return null
-    return usd * rate
-  }, [watched])
-
-  const saleArs = useMemo(() => {
-    const saleUsd = Number(watched[3] || 0)
-    const fx = Number(watched[1] || 0)
-    if (!saleUsd || !fx) return null
-    return saleUsd * fx
-  }, [watched])
-
-  const marginPct = useMemo(() => {
-    if (!purchaseArs || !saleArs) return null
-    if (!purchaseArs) return null
-    return ((saleArs - purchaseArs) / purchaseArs) * 100
-  }, [purchaseArs, saleArs])
-
-  const gainArs = useMemo(() => {
-    if (!purchaseArs || !saleArs) return null
-    return saleArs - purchaseArs
-  }, [saleArs, purchaseArs])
-
-  const category = form.watch('category')
-  const brand = form.watch('brand')
-  const condition = form.watch('condition') as FormValues['condition'] | undefined
-  const conditionValue = (condition ?? 'used') as FormValues['condition']
-  const isConditionNew = conditionValue === 'new'
-  const imeiLater = form.watch('imei_later')
-  const color = form.watch('color')
-  const iphoneModel = form.watch('iphone_model')
-  const fxRate = form.watch('fx_rate_used')
-  const isSealed = form.watch('is_sealed')
-
-  useEffect(() => {
-    if (isAppleBrand(brand) && !form.getValues('iphone_model')) {
-      form.setValue('iphone_model', '', { shouldValidate: true })
-    }
-  }, [brand, form])
-
-  useEffect(() => {
-    if (category === 'new') {
-      form.setValue('condition', 'new', { shouldValidate: true })
-      return
-    }
-    if (category === 'used_premium') {
-      form.setValue('condition', 'like_new', { shouldValidate: true })
-      return
-    }
-    if (category === 'outlet') {
-      form.setValue('condition', 'outlet', { shouldValidate: true })
-      return
-    }
-  }, [category, form])
-
-  useEffect(() => {
-    if (iphoneModel && iphoneModel !== 'other') {
-      form.setValue('model_other', '', { shouldValidate: true })
-    }
-  }, [iphoneModel, form])
-
-  useEffect(() => {
-    if (category !== 'new' && isSealed) {
-      form.setValue('is_sealed', false, { shouldValidate: true })
-    }
-  }, [category, isSealed, form])
-
-  useEffect(() => {
-    if (isConditionNew) {
-      form.setValue('battery_pct', 100, { shouldValidate: true })
-      return
-    }
-    if (!isConditionNew && form.getValues('battery_pct') === 100) {
-      form.setValue('battery_pct', 85, { shouldValidate: true })
-    }
-  }, [isConditionNew, form])
-
-  useEffect(() => {
-    form.setValue('purchase_ars', purchaseArs ? Number(purchaseArs) : 0, { shouldValidate: true })
-  }, [purchaseArs, form])
-
-  useEffect(() => {
-    form.setValue('sale_price_ars', saleArs ? Number(saleArs) : 0, { shouldValidate: true })
-  }, [saleArs, form])
-
-  useEffect(() => {
-    if (open) {
-      const storedFx = localStorage.getItem(fxStorageKey)
-      if (storedFx && !form.getValues('fx_rate_used')) {
-        form.setValue('fx_rate_used', Number(storedFx), { shouldValidate: true })
-      }
-    }
-  }, [open, form, fxStorageKey])
-
-  useEffect(() => {
-    const fx = Number(fxRate || 0)
-    if (fx > 0) {
-      localStorage.setItem(fxStorageKey, String(fx))
-    }
-  }, [fxRate, fxStorageKey])
-
-  const mutation = useMutation({
-    mutationFn: upsertStockItem,
+  const createMutation = useMutation({
+    mutationFn: createStockItem,
     onSuccess: () => {
-      toast.success('Equipo guardado')
+      toast.success('Equipo creado')
       queryClient.invalidateQueries({ queryKey: ['stock'] })
-      setOpen(false)
-      form.reset({
-        status: 'available',
-        category: 'new',
-        brand: '',
-        condition: 'used',
-        battery_pct: 85,
-        warranty_days: 90,
-        imei_later: false,
-        provider_name: '',
-        details: '',
-        received_at: today,
+      setNewOpen(false)
+      newForm.reset({
+        state: 'new',
+        battery_pct: 100,
+        storage_gb: 128,
+        sale_price_ars: 0,
+        received_at: new Date().toISOString().slice(0, 10),
         is_promo: false,
-        is_sealed: false,
-        fx_rate_used: form.getValues('fx_rate_used'),
       })
     },
+    onError: (error) => {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo crear el equipo')
+    },
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteStockItem,
+  const stateMutation = useMutation({
+    mutationFn: ({ id, state }: { id: string; state: StockState }) => setStockState(id, state, { status: state }),
     onSuccess: () => {
-      toast.success('Equipo eliminado')
       queryClient.invalidateQueries({ queryKey: ['stock'] })
-      setConfirmDeleteOpen(false)
-      setDetailsOpen(false)
-      setSelected(null)
+      toast.success('Estado actualizado')
     },
     onError: (error) => {
-      const err = error as Error & { code?: string; details?: unknown }
-      toast.error(err.message || 'No se pudo eliminar el equipo')
-      if (err.code) {
-        console.error('deleteStockItem error', err.code, err.details)
-      }
+      const err = error as Error
+      toast.error(err.message || 'No se pudo cambiar estado')
     },
   })
 
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: StockItem['status'] }) => setStockStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['stock'] }),
+  const promoMutation = useMutation({
+    mutationFn: ({ id, isPromo }: { id: string; isPromo: boolean }) => setStockPromo(id, isPromo),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stock'] })
+    },
+    onError: (error) => {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo actualizar promo')
+    },
   })
 
-  const onSubmit = (values: FormValues) => {
-    const parsed = schema.parse(values)
-    const finalModel =
-      isAppleBrand(parsed.brand)
-        ? parsed.iphone_model === 'other'
-          ? parsed.model_other ?? ''
-          : parsed.iphone_model ?? ''
-        : parsed.model ?? ''
-    const imeiValue = parsed.imei_later ? null : parsed.imei ?? null
-    const batteryValue = parsed.condition === 'new' ? 100 : parsed.battery_pct
-    mutation.mutate({
-      id: parsed.id,
-      category: parsed.category,
-      brand: parsed.brand,
-      model: finalModel,
-      condition: parsed.condition,
-      imei: imeiValue,
+  const reserveMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: unknown }) => {
+      const parsed = reserveSchema.parse(payload)
+      return reserveStockItem(id, {
+        reserve_type: parsed.reserve_type,
+        reserve_amount_ars: parsed.reserve_amount_ars ?? undefined,
+        reserve_notes: parsed.reserve_notes,
+      })
+    },
+    onSuccess: () => {
+      toast.success('Equipo actualizado')
+      queryClient.invalidateQueries({ queryKey: ['stock'] })
+      setReserveOpen(false)
+      setReserveTarget(null)
+      reserveForm.reset({ reserve_type: 'reserva', reserve_amount_ars: null, reserve_notes: '' })
+    },
+    onError: (error) => {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo reservar/señar')
+    },
+  })
+
+  const handleCreate = (values: unknown) => {
+    const parsed = createSchema.parse(values)
+    const duplicatedImei = stockItems.some(
+      (item) => String(item.imei ?? '').trim() !== '' && String(item.imei).trim() === parsed.imei.trim(),
+    )
+
+    if (duplicatedImei) {
+      toast.error('IMEI duplicado. Debe ser único.')
+      return
+    }
+
+    createMutation.mutate({
+      state: parsed.state,
+      status: parsed.state,
+      category: parsed.state,
+      brand: 'Apple',
+      model: parsed.model,
       storage_gb: parsed.storage_gb,
-      color: parsed.color,
-      color_other: parsed.color_other,
-      battery_pct: batteryValue,
-      purchase_usd: parsed.purchase_usd,
-      fx_rate_used: parsed.fx_rate_used,
-      purchase_ars: Number(purchaseArs || 0),
-      sale_price_usd: parsed.sale_price_usd,
-      sale_price_ars: Number(saleArs || 0),
-      warranty_days: parsed.warranty_days,
-      status: parsed.status,
-      provider_name: parsed.provider_name?.trim() || null,
+      battery_pct: parsed.battery_pct,
+      color: parsed.color?.trim() || null,
+      sale_price_ars: parsed.sale_price_ars,
       details: parsed.details?.trim() || null,
-      received_at: parsed.received_at || null,
-      is_promo: parsed.is_promo || parsed.category === 'promotion',
-      is_sealed: parsed.is_sealed,
+      imei: parsed.imei.trim(),
+      received_at: parsed.received_at,
+      provider_name: parsed.provider_name?.trim() || null,
+      is_promo: parsed.is_promo,
     })
   }
 
-  const openDetails = (item: StockItem) => {
-    setSelected(item)
-    setDetailsOpen(true)
-  }
-
-  const openEdit = (item: StockItem) => {
-    const modelMatch = IPHONE_MODELS.includes(item.model)
-    form.reset({
-      id: item.id,
-      category: item.category as FormValues['category'],
-      brand: item.brand,
-      model: modelMatch ? undefined : item.model,
-      iphone_model: modelMatch ? item.model : isAppleBrand(item.brand) ? 'other' : undefined,
-      model_other: modelMatch ? undefined : item.model,
-      storage_gb: (item as StockItem & { storage_gb?: number | null }).storage_gb ?? undefined,
-      color: (item as StockItem & { color?: string | null }).color ?? undefined,
-      color_other: (item as StockItem & { color_other?: string | null }).color_other ?? undefined,
-      imei: item.imei ?? undefined,
-      imei_later: false,
-      condition: item.condition as FormValues['condition'],
-      battery_pct: (item as StockItem & { battery_pct?: number | null }).battery_pct ?? 85,
-      purchase_usd: item.purchase_usd,
-      fx_rate_used: item.fx_rate_used,
-      purchase_ars: item.purchase_ars,
-      sale_price_usd: (item as StockItem & { sale_price_usd?: number | null }).sale_price_usd ?? undefined,
-      sale_price_ars: item.sale_price_ars,
-      warranty_days: item.warranty_days ?? 90,
-      status: item.status,
-      provider_name: (item as StockItem & { provider_name?: string | null }).provider_name ?? '',
-      details: (item as StockItem & { details?: string | null }).details ?? '',
-      received_at:
-        ((item as StockItem & { received_at?: string | null }).received_at ?? item.created_at ?? today).slice(0, 10),
-      is_promo: Boolean((item as StockItem & { is_promo?: boolean | null }).is_promo || item.category === 'promotion'),
-      is_sealed: Boolean((item as StockItem & { is_sealed?: boolean | null }).is_sealed),
-    })
-    setOpen(true)
-    setDetailsOpen(false)
-  }
-
-  const handleAddNewEquipmentClick = () => {
-    const currentFx = Number(form.getValues('fx_rate_used') || 0)
-    setOpen(true)
-    form.reset({
-      status: 'available',
-      category: 'new',
-      brand: '',
-      condition: 'used',
-      battery_pct: 85,
-      warranty_days: 90,
-      imei_later: false,
-      provider_name: '',
-      details: '',
-      received_at: today,
-      is_promo: false,
-      is_sealed: false,
-      fx_rate_used: currentFx > 0 ? currentFx : undefined,
-    })
+  const handleReserveSubmit = (values: unknown) => {
+    if (!reserveTarget) return
+    reserveMutation.mutate({ id: reserveTarget.id, payload: reserveSchema.parse(values) })
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6 pb-24">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Stock</h2>
-          <p className="text-sm text-[#5B677A]">Equipos, proveedor, IMEI, fecha de ingreso y estado operativo.</p>
+          <p className="text-sm text-[#5B677A]">Vista operativa por estado, precio, proveedor e IMEI.</p>
         </div>
-        <Button onClick={handleAddNewEquipmentClick}>Agregar equipo</Button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E6EBF2] bg-white p-2">
-        {stockTabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => applyTab(tab.key)}
-            className={cn(
-              'rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition',
-              activeTab === tab.key
-                ? 'bg-[rgba(11,74,162,0.12)] text-[#0B4AA2]'
-                : 'text-[#5B677A] hover:bg-[#F8FAFC]',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+        <Button onClick={() => setNewOpen(true)}>Nuevo equipo</Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-6">
+        <Select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}>
+          <option value="">Estado (todos)</option>
+          {stateOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+        <Input placeholder="Modelo" value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} />
         <Input
-          placeholder="Buscar marca, modelo, IMEI o proveedor"
-          value={filters.query}
-          onChange={(e) =>
-            setFilters({
-              ...filters,
-              query: e.target.value,
-            })
-          }
-          className="md:col-span-2"
+          type="number"
+          min={1}
+          placeholder="GB"
+          value={storageFilter}
+          onChange={(event) => setStorageFilter(event.target.value)}
         />
-        <Select
-          value={filters.status}
-          onChange={(e) => {
-            setActiveTab('custom')
-            setFilters({ ...filters, status: e.target.value })
-          }}
-        >
-          <option value="">Estado</option>
-          <option value="available">Disponible</option>
-          <option value="reserved">Reservado</option>
-          <option value="sold">Vendido</option>
-          <option value="service_tech">Servicio técnico</option>
-          <option value="drawer">Cajón</option>
+        <Input
+          type="number"
+          min={0}
+          max={100}
+          placeholder="Batería mínima"
+          value={batteryFilter}
+          onChange={(event) => setBatteryFilter(event.target.value)}
+        />
+        <Select value={promoFilter} onChange={(event) => setPromoFilter(event.target.value as 'all' | 'promo' | 'no_promo')}>
+          <option value="all">Promo: todos</option>
+          <option value="promo">Solo promo</option>
+          <option value="no_promo">Sin promo</option>
         </Select>
-        <Select
-          value={filters.category}
-          onChange={(e) => {
-            setActiveTab('custom')
-            setFilters({ ...filters, category: e.target.value })
-          }}
-        >
-          <option value="">Categoría</option>
-          <option value="new">Nuevo</option>
-          <option value="promotion">Promoción</option>
-          <option value="outlet">Outlet</option>
-          <option value="used_premium">Usado Premium</option>
-        </Select>
-        <Select value={filters.condition} onChange={(e) => setFilters({ ...filters, condition: e.target.value })}>
-          <option value="">Condición</option>
-          <option value="new">Nuevo</option>
-          <option value="like_new">Como nuevo</option>
-          <option value="used">Usado</option>
-          <option value="outlet">Outlet</option>
-        </Select>
-        <Select
-          value={filters.sort}
-          onChange={(e) =>
-            setFilters({
-              ...filters,
-              sort: e.target.value,
-            })
-          }
-        >
-          <option value="newest">Más nuevos</option>
-          <option value="oldest">Más antiguos</option>
-          <option value="price_desc">Precio mayor</option>
-          <option value="price_asc">Precio menor</option>
-          <option value="margin_desc">Mejor margen</option>
-        </Select>
+        <Input placeholder="Proveedor" value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-[#5B677A]">
-          {isLoading ? 'Buscando...' : `Mostrando ${visibleItems.length} de ${data.length} equipos`}
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={filters.promoOnly ? 'primary' : 'secondary'}
-            onClick={() => setFilters((prev) => ({ ...prev, promoOnly: !prev.promoOnly }))}
-          >
-            Solo promoción
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!hasActiveFilters}
-            onClick={() => {
-              setActiveTab('available')
-              setFilters({ status: 'available', category: '', query: '', condition: '', sort: 'newest', promoOnly: false })
-              setCriticalOnly(false)
-            }}
-          >
-            Limpiar filtros
-          </Button>
-        </div>
-      </div>
-
-      {(criticalStats.missingPrice > 0 || criticalStats.missingImei > 0 || criticalStats.lowMargin > 0) && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgba(245,158,11,0.3)] bg-[rgba(245,158,11,0.10)] px-4 py-3">
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="font-semibold text-[#92400E]">Alertas de stock</span>
-            <span className="rounded-full bg-white px-2 py-1 text-xs text-[#92400E]">Sin precio: {criticalStats.missingPrice}</span>
-            <span className="rounded-full bg-white px-2 py-1 text-xs text-[#92400E]">Sin IMEI (Apple): {criticalStats.missingImei}</span>
-            <span className="rounded-full bg-white px-2 py-1 text-xs text-[#92400E]">Margen &lt; 8%: {criticalStats.lowMargin}</span>
-          </div>
-          <Button
-            size="sm"
-            variant={criticalOnly ? 'primary' : 'secondary'}
-            onClick={() => setCriticalOnly((prev) => !prev)}
-          >
-            {criticalOnly ? 'Ver todo' : 'Ver críticos'}
-          </Button>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {isLoading ? (
-          <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Cargando...</div>
-        ) : visibleItems.length === 0 ? (
-          <div className="rounded-2xl border border-[#E6EBF2] bg-white p-6 text-sm text-[#5B677A]">Sin equipos en stock.</div>
+      <Table
+        headers={[
+          'Estado',
+          'Modelo',
+          'GB',
+          'Batería',
+          'Color',
+          'Precio',
+          'Detalles',
+          'IMEI',
+          'Ingreso',
+          'Proveedor',
+          'Promo',
+          'Días',
+          'Acciones',
+        ]}
+      >
+        {stockQuery.isLoading ? (
+          <tr>
+            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={13}>
+              Cargando stock...
+            </td>
+          </tr>
+        ) : filteredStock.length === 0 ? (
+          <tr>
+            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={13}>
+              Sin registros para los filtros actuales.
+            </td>
+          </tr>
         ) : (
-          visibleItems.map((item) => <StockListItem key={item.id} item={item} onClick={() => openDetails(item)} />)
+          filteredStock.map((item) => {
+            const rowState = resolveState(item)
+            return (
+              <tr key={item.id}>
+                <td className="px-4 py-3 text-sm">
+                  <Select
+                    className="h-9"
+                    value={rowState}
+                    onChange={(event) => stateMutation.mutate({ id: item.id, state: event.target.value as StockState })}
+                  >
+                    {stateOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </td>
+                <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">{item.model || '—'}</td>
+                <td className="px-4 py-3 text-sm">{item.storage_gb ?? '—'}</td>
+                <td className="px-4 py-3 text-sm">{typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'}</td>
+                <td className="px-4 py-3 text-sm">{item.color || '—'}</td>
+                <td className="px-4 py-3 text-sm">{formatMoney(item.sale_price_ars)}</td>
+                <td className="max-w-[220px] truncate px-4 py-3 text-sm" title={item.details ?? ''}>
+                  {item.details || '—'}
+                </td>
+                <td className="px-4 py-3 text-sm">{item.imei || '—'}</td>
+                <td className="px-4 py-3 text-sm">{formatDate(item.received_at ?? item.created_at)}</td>
+                <td className="px-4 py-3 text-sm">{item.provider_name || '—'}</td>
+                <td className="px-4 py-3 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => promoMutation.mutate({ id: item.id, isPromo: !Boolean(item.is_promo) })}
+                    className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                      item.is_promo ? 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]' : 'bg-[#EEF2F7] text-[#475569]'
+                    }`}
+                  >
+                    {item.is_promo ? 'Sí' : 'No'}
+                  </button>
+                </td>
+                <td className="px-4 py-3 text-sm">{item.days_in_stock ?? '—'}</td>
+                <td className="px-4 py-3 text-sm">
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
+                      Vender
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setReserveTarget(item)
+                        reserveForm.reset({ reserve_type: 'reserva', reserve_amount_ars: null, reserve_notes: '' })
+                        setReserveOpen(true)
+                      }}
+                    >
+                      Reservar/Señar
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )
+          })
         )}
-      </div>
+      </Table>
 
       <Modal
-        open={open}
-        title={form.watch('id') ? 'Editar equipo' : 'Nuevo equipo'}
-        subtitle="Cargá los datos del equipo"
-        onClose={() => setOpen(false)}
+        open={newOpen}
+        title="Nuevo equipo"
+        subtitle="Carga rápida para operación diaria"
+        onClose={() => setNewOpen(false)}
         actions={
           <>
-            <Button variant="secondary" type="button" onClick={() => setOpen(false)}>
+            <Button variant="secondary" onClick={() => setNewOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" form="stock-form" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Guardando...' : 'Guardar equipo'}
+            <Button onClick={newForm.handleSubmit(handleCreate)} disabled={createMutation.isPending}>
+              {createMutation.isPending ? 'Guardando...' : 'Guardar'}
             </Button>
           </>
         }
       >
-        <form id="stock-form" className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Datos del equipo</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Categoría">
-                <Select {...form.register('category')}>
-                  <option value="new">Nuevo</option>
-                  <option value="promotion">Promoción</option>
-                  <option value="outlet">Outlet</option>
-                  <option value="used_premium">Usado Premium</option>
-                </Select>
-              </Field>
-              <Field label="Marca">
-                <>
-                  <Input className="h-11" list="brand-suggestions" {...form.register('brand')} placeholder="Apple, Samsung, Xiaomi" />
-                  <datalist id="brand-suggestions">
-                    <option value="Apple" />
-                    <option value="Samsung" />
-                    <option value="Motorola" />
-                    <option value="Xiaomi" />
-                    <option value="Huawei" />
-                    <option value="Google" />
-                    <option value="OnePlus" />
-                  </datalist>
-                </>
-              </Field>
-              {isAppleBrand(brand) ? (
-                <Field label="Modelo iPhone">
-                  <Controller
-                    name="iphone_model"
-                    control={form.control}
-                    render={({ field }) => (
-                      <IphoneModelSelector
-                        value={field.value ?? ''}
-                        onChange={(value) => field.onChange(value)}
-                        onOther={() => field.onChange('other')}
-                      />
-                    )}
-                  />
-                </Field>
-              ) : (
-                <Field label="Modelo">
-                  <Input className="h-11" {...form.register('model')} placeholder="Galaxy S23, Moto G" />
-                </Field>
-              )}
-              {isAppleBrand(brand) && iphoneModel === 'other' && (
-                <Field label="Otro iPhone">
-                  <Input className="h-11" {...form.register('model_other')} placeholder="iPhone 15 Ultra" />
-                </Field>
-              )}
-              <Field label="Capacidad (GB)">
-                <Select {...form.register('storage_gb')}>
-                  <option value="">Seleccionar</option>
-                  <option value="64">64</option>
-                  <option value="128">128</option>
-                  <option value="256">256</option>
-                  <option value="512">512</option>
-                  <option value="1024">1024</option>
-                </Select>
-              </Field>
-              <Field label="Batería (%)">
-                <Input className="h-12" type="number" min={0} max={100} {...form.register('battery_pct')} disabled={isConditionNew} />
-              </Field>
-              <Field label="Condición">
-                {category === 'promotion' ? (
-                  <Select {...form.register('condition')}>
-                    <option value="new">Nuevo</option>
-                    <option value="like_new">Como nuevo</option>
-                    <option value="used">Usado</option>
-                    <option value="outlet">Outlet</option>
-                  </Select>
-                ) : (
-                  <Input className="h-11" value={conditionLabels[conditionValue]} readOnly />
-                )}
-              </Field>
-              <Field label="Color">
-                <Select {...form.register('color')}>
-                  <option value="">Seleccionar</option>
-                  <option value="Negro">Negro</option>
-                  <option value="Blanco">Blanco</option>
-                  <option value="Azul">Azul</option>
-                  <option value="Rojo">Rojo</option>
-                  <option value="Verde">Verde</option>
-                  <option value="Gris">Gris</option>
-                  <option value="Titanio">Titanio</option>
-                  <option value="Gold">Gold</option>
-                  <option value="Purple">Purple</option>
-                  <option value="Pink">Pink</option>
-                  <option value="Starlight">Starlight</option>
-                  <option value="Midnight">Midnight</option>
-                  <option value="Otro">Otro</option>
-                </Select>
-              </Field>
-              {color === 'Otro' && (
-                <Field label="Especificar color">
-                  <Input className="h-11" {...form.register('color_other')} placeholder="Ej: Azul oscuro" />
-                </Field>
-              )}
-              <Field label="Garantía (días)">
-                <Input className="h-12" type="number" {...form.register('warranty_days')} />
-                <div className="mt-2 flex gap-2">
-                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 30)}>
-                    30
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 90)}>
-                    90
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" onClick={() => form.setValue('warranty_days', 180)}>
-                    180
-                  </Button>
-                </div>
-              </Field>
-              <Field label="Estado de inventario">
-                <Select {...form.register('status')}>
-                  <option value="available">Disponible</option>
-                  <option value="reserved">Reservado / Señado</option>
-                  <option value="service_tech">Servicio técnico</option>
-                  <option value="drawer">Cajón</option>
-                  <option value="sold">Vendido</option>
-                </Select>
-              </Field>
-              <Field label="Proveedor">
-                <Input className="h-11" {...form.register('provider_name')} placeholder="Proveedor o fuente de compra" />
-              </Field>
-              <Field label="Fecha de ingreso">
-                <Input className="h-11" type="date" {...form.register('received_at')} />
-              </Field>
-              <Field label="Detalle">
-                <Input className="h-11" {...form.register('details')} placeholder="Observaciones del equipo" />
-              </Field>
-              <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-3 text-xs text-[#5B677A]">
-                <label className="flex items-center gap-2">
-                  <input type="checkbox" {...form.register('is_promo')} />
-                  Marcar como promoción (resaltado rojo en listado)
-                </label>
-                <label className="mt-2 flex items-center gap-2">
-                  <input type="checkbox" {...form.register('is_sealed')} disabled={category !== 'new'} />
-                  Nuevo sellado
-                </label>
-              </div>
-              <div className="md:col-span-2">
-                <Field label="IMEI (opcional)">
-                  <Input
-                    className="h-12"
-                    {...form.register('imei')}
-                    placeholder="Últimos 4 dígitos"
-                    disabled={imeiLater}
-                  />
-                  {isAppleBrand(brand) && (
-                    <div className="mt-2 flex items-center gap-2 text-xs text-[#5B677A]">
-                      <input type="checkbox" {...form.register('imei_later')} />
-                      Cargar después (se requiere antes de vender)
-                    </div>
-                  )}
-                  {isAppleBrand(brand) && imeiLater && (
-                    <div className="mt-2 text-xs text-[#92400E]">Atención: el IMEI es obligatorio para vender.</div>
-                  )}
-                </Field>
-              </div>
-            </div>
+        <form className="grid gap-3 md:grid-cols-2" onSubmit={newForm.handleSubmit(handleCreate)}>
+          <Field label="Estado">
+            <Select {...newForm.register('state')}>
+              {stateOptions.filter((option) => option.value !== 'sold').map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Modelo">
+            <Input {...newForm.register('model')} placeholder="iPhone 13" />
+          </Field>
+          <Field label="GB">
+            <Input type="number" min={1} {...newForm.register('storage_gb')} />
+          </Field>
+          <Field label="Batería %">
+            <Input type="number" min={0} max={100} {...newForm.register('battery_pct')} />
+          </Field>
+          <Field label="Color">
+            <Input {...newForm.register('color')} />
+          </Field>
+          <Field label="Precio ARS">
+            <Input type="number" min={1} {...newForm.register('sale_price_ars')} />
+          </Field>
+          <Field label="IMEI">
+            <Input {...newForm.register('imei')} />
+          </Field>
+          <Field label="Fecha ingreso">
+            <Input type="date" {...newForm.register('received_at')} />
+          </Field>
+          <Field label="Proveedor">
+            <Input {...newForm.register('provider_name')} />
+          </Field>
+          <Field label="Promo">
+            <label className="flex h-11 items-center gap-2 rounded-xl border border-[#E6EBF2] px-3 text-sm text-[#0F172A]">
+              <input type="checkbox" {...newForm.register('is_promo')} />
+              Marcar promoción
+            </label>
+          </Field>
+          <div className="md:col-span-2">
+            <Field label="Detalles">
+              <Input {...newForm.register('details')} placeholder="Detalle estético, faltante, etc." />
+            </Field>
           </div>
-
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costos y precio</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl bg-[#F8FAFC] p-4 md:col-span-2">
-                <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Costo</h4>
-                <div className="mt-3 grid gap-4 md:grid-cols-3">
-                  <Field label="Costo USD">
-                    <Input className="h-12" type="number" step="0.01" placeholder="Ej: 400" {...form.register('purchase_usd')} />
-                  </Field>
-                  <Field label="Tipo de cambio (ARS)">
-                    <Input className="h-12" type="number" step="0.01" placeholder="Ej: 1200" {...form.register('fx_rate_used')} />
-                    <div className="mt-1.5 text-xs text-[#5B677A]">Se utilizará el mismo tipo de cambio para el precio.</div>
-                  </Field>
-                  <Field label="Costo ARS">
-                    <Input
-                      className="h-12 bg-[#F1F5F9]"
-                      type="number"
-                      step="0.01"
-                      value={purchaseArs ? purchaseArs.toFixed(0) : ''}
-                      readOnly
-                      disabled
-                    />
-                    <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
-                  </Field>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-[#F8FAFC] p-4 md:col-span-2">
-                <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Precio de venta</h4>
-                <div className="mt-3 grid gap-4 md:grid-cols-3">
-                  <Field label="Precio de venta sugerido (USD)">
-                    <Input className="h-12" type="number" step="0.01" placeholder="Ej: 650" {...form.register('sale_price_usd')} />
-                  </Field>
-                  <Field label="Precio de venta ARS">
-                    <Input
-                      className="h-12 bg-[#F1F5F9]"
-                      type="number"
-                      step="0.01"
-                      value={saleArs ? saleArs.toFixed(0) : ''}
-                      readOnly
-                      disabled
-                    />
-                    <div className="mt-1.5 text-xs text-[#5B677A]">Auto: USD × TC</div>
-                  </Field>
-                </div>
-              </div>
-
-              <div className="md:col-span-2">
-                <div
-                  className={cn(
-                    'rounded-xl px-4 py-4 text-xs font-medium',
-                    !purchaseArs || !saleArs
-                      ? 'bg-[#F8FAFC] text-[#5B677A]'
-                      : marginPct != null && marginPct < 0
-                      ? 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]'
-                      : 'bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]',
-                  )}
-                >
-                  <div>Margen estimado: {marginPct != null ? `${marginPct.toFixed(1)}%` : '—'}</div>
-                  <div className={cn('mt-1 text-[11px]', marginPct != null && marginPct < 0 ? 'text-[#991B1B]' : 'text-[#0B4AA2]')}>
-                    Ganancia estimada: {gainArs != null ? `ARS $${gainArs.toLocaleString('es-AR')}` : '—'}
-                  </div>
-                </div>
-              </div>
+          {Object.keys(newForm.formState.errors).length > 0 && (
+            <div className="md:col-span-2 space-y-1 rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-3 text-xs text-[#991B1B]">
+              {newForm.formState.errors.model?.message && <p>{newForm.formState.errors.model.message}</p>}
+              {newForm.formState.errors.storage_gb?.message && <p>{newForm.formState.errors.storage_gb.message}</p>}
+              {newForm.formState.errors.battery_pct?.message && <p>{newForm.formState.errors.battery_pct.message}</p>}
+              {newForm.formState.errors.sale_price_ars?.message && <p>{newForm.formState.errors.sale_price_ars.message}</p>}
+              {newForm.formState.errors.imei?.message && <p>{newForm.formState.errors.imei.message}</p>}
+              {newForm.formState.errors.received_at?.message && <p>{newForm.formState.errors.received_at.message}</p>}
             </div>
-          </div>
-
-          <input type="hidden" {...form.register('purchase_ars')} />
-          <input type="hidden" {...form.register('sale_price_ars')} />
+          )}
         </form>
       </Modal>
 
-      <StockItemDetailsModal
-        open={detailsOpen}
-        item={selected}
-        onClose={() => setDetailsOpen(false)}
-        onEdit={() => selected && openEdit(selected)}
-        onDelete={() => setConfirmDeleteOpen(true)}
-        onSell={() => selected && navigate(`/sales/new?stock=${selected.id}`)}
-        onStatusChange={(nextStatus) => {
-          if (!selected) return
-          setSelected({ ...selected, status: nextStatus })
-          queryClient.setQueryData<StockItem[]>(stockQueryKey, (prev) =>
-            (prev ?? []).map((item) => (item.id === selected.id ? { ...item, status: nextStatus } : item)),
-          )
-          statusMutation.mutate({ id: selected.id, status: nextStatus })
-        }}
-      />
-
       <Modal
-        open={confirmDeleteOpen}
-        title="Eliminar equipo"
-        onClose={() => setConfirmDeleteOpen(false)}
+        open={reserveOpen}
+        title="Reservar / Señar"
+        subtitle={reserveTarget ? `${reserveTarget.model} · ${reserveTarget.imei ?? 'Sin IMEI'}` : undefined}
+        onClose={() => {
+          setReserveOpen(false)
+          setReserveTarget(null)
+        }}
         actions={
           <>
-            <Button variant="secondary" onClick={() => setConfirmDeleteOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setReserveOpen(false)
+                setReserveTarget(null)
+              }}
+            >
               Cancelar
             </Button>
-            <Button
-              variant="danger"
-              onClick={() => selected && deleteMutation.mutate(selected.id)}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            <Button onClick={reserveForm.handleSubmit(handleReserveSubmit)} disabled={reserveMutation.isPending}>
+              {reserveMutation.isPending ? 'Guardando...' : 'Guardar'}
             </Button>
           </>
         }
       >
-        <p className="text-sm text-[#5B677A]">¿Eliminar este equipo? Esta acción no se puede deshacer.</p>
+        <form className="space-y-3" onSubmit={reserveForm.handleSubmit(handleReserveSubmit)}>
+          <Field label="Tipo">
+            <Select {...reserveForm.register('reserve_type')}>
+              <option value="reserva">Reserva</option>
+              <option value="sena">Seña</option>
+            </Select>
+          </Field>
+          <Field label="Monto ARS (opcional)">
+            <Input
+              type="number"
+              min={0}
+              value={reserveForm.watch('reserve_amount_ars') == null ? '' : String(reserveForm.watch('reserve_amount_ars'))}
+              onChange={(event) => {
+                reserveForm.setValue('reserve_amount_ars', asPositiveNumber(event.target.value), {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                })
+              }}
+            />
+          </Field>
+          <Field label="Observación">
+            <Input {...reserveForm.register('reserve_notes')} placeholder="Fecha límite, faltante, etc." />
+          </Field>
+        </form>
       </Modal>
     </div>
   )

@@ -73,6 +73,7 @@ function escapeHtml(value: string) {
 export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: SalesDetailsModalProps) {
   if (!sale) return null
 
+  const methodKey = sale.method ?? sale.payment_method ?? 'cash'
   const customer =
     sale.customer_name ||
     sale.customer?.name ||
@@ -196,7 +197,7 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
     >
       <div className="flex flex-wrap items-center gap-3">
         <div className="text-lg font-semibold text-[#0F172A]">{mainTotalLabel}</div>
-        <Badge label={methodLabels[sale.method] ?? sale.method} />
+        <Badge label={methodLabels[methodKey] ?? methodKey} />
         {sale.includes_cube_20w ? <Badge label="Cubo 20W" tone="valued" /> : null}
         {statusLabel ? <span className={`rounded-full px-2 py-0.5 text-xs ${statusStyle}`}>{statusLabel}</span> : null}
       </div>
@@ -206,7 +207,7 @@ export function SalesDetailsModal({ open, sale, onClose, onEdit, onDelete }: Sal
           <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">Resumen</h4>
           <div className="mt-3 space-y-2 text-sm text-[#0F172A]">
             <div className="text-lg font-semibold">{mainTotalLabel}</div>
-            <div>Método: {methodLabels[sale.method] ?? sale.method}</div>
+            <div>Método: {methodLabels[methodKey] ?? methodKey}</div>
             {currency === 'USD' && (
               <div>
                 ARS: {formatArs(sale.total_ars)}

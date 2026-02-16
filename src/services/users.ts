@@ -1,11 +1,12 @@
-import { supabase } from '../lib/supabase'
-import { apiClient } from '../lib/apiClient'
 import type { Profile } from '../types'
+import { asArray, asObject } from './normalizers'
+import { requestFirstAvailable } from './request'
+
+const USER_ENDPOINTS = ['/api/admin/users', '/api/users']
 
 export async function fetchUsers() {
-  const { data, error } = await supabase.from('profiles').select('*').order('full_name')
-  if (error) throw error
-  return (data ?? []) as Profile[]
+  const response = await requestFirstAvailable<unknown>(USER_ENDPOINTS)
+  return asArray<Profile>(response)
 }
 
 export async function createUser(payload: {
@@ -14,11 +15,17 @@ export async function createUser(payload: {
   full_name: string
   role: 'seller' | 'admin'
 }) {
-  return apiClient('/api/admin/users', { method: 'POST', body: payload })
+  const response = await requestFirstAvailable<unknown>(USER_ENDPOINTS, {
+    method: 'POST',
+    body: payload,
+  })
+  return asObject<Profile>(response)
 }
 
 export async function updateUserRole(id: string, role: 'seller' | 'admin') {
-  const { data, error } = await supabase.from('profiles').update({ role }).eq('id', id).select('*').single()
-  if (error) throw error
-  return data as Profile
+  const response = await requestFirstAvailable<unknown>(USER_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
+    method: 'PATCH',
+    body: { role },
+  })
+  return asObject<Profile>(response)
 }

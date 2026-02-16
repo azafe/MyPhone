@@ -1,15 +1,27 @@
-import { supabase } from '../lib/supabase'
 import type { Warranty } from '../types'
+import { asArray, asObject, toQueryString } from './normalizers'
+import { requestFirstAvailable } from './request'
+
+const WARRANTY_ENDPOINTS = ['/api/warranties', '/api/warranty-cases']
 
 export async function fetchWarranties(filters: { status?: string; query?: string } = {}) {
-  let request = supabase.from('warranties').select('*').order('ends_at', { ascending: true })
-  if (filters.status) request = request.eq('status', filters.status)
-  if (filters.query) {
-    request = request.or(
-      `customer_name.ilike.%${filters.query}%,customer_phone.ilike.%${filters.query}%,imei.ilike.%${filters.query}%,issue_reason.ilike.%${filters.query}%,replacement_device_label.ilike.%${filters.query}%`
-    )
-  }
-  const { data, error } = await request
-  if (error) throw error
-  return (data ?? []) as Warranty[]
+  const query = toQueryString({ status: filters.status, query: filters.query })
+  const response = await requestFirstAvailable<unknown>(WARRANTY_ENDPOINTS.map((endpoint) => `${endpoint}${query}`))
+  return asArray<Warranty>(response)
+}
+
+export async function createWarranty(payload: Partial<Warranty>) {
+  const response = await requestFirstAvailable<unknown>(WARRANTY_ENDPOINTS, {
+    method: 'POST',
+    body: payload,
+  })
+  return asObject<Warranty>(response)
+}
+
+export async function updateWarranty(id: string, payload: Partial<Warranty>) {
+  const response = await requestFirstAvailable<unknown>(WARRANTY_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
+    method: 'PATCH',
+    body: payload,
+  })
+  return asObject<Warranty>(response)
 }

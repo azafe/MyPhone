@@ -37,6 +37,9 @@ export function StockItemDetailsModal({
 }: StockItemDetailsModalProps) {
   if (!item) return null
 
+  const categoryKey = item.category ?? ''
+  const conditionKey = item.condition ?? ''
+  const statusKey = item.status ?? item.state ?? 'new'
   const marginPct =
     item.purchase_ars && item.sale_price_ars
       ? ((item.sale_price_ars - item.purchase_ars) / item.sale_price_ars) * 100
@@ -62,7 +65,7 @@ export function StockItemDetailsModal({
     service_tech: 'Servicio técnico',
     drawer: 'Cajón',
   }
-  const statusOptions: Array<{ value: StockItem['status']; label: string }> = [
+  const statusOptions: Array<{ value: NonNullable<StockItem['status']>; label: string }> = [
     { value: 'available', label: 'Disponible' },
     { value: 'reserved', label: 'Reservado' },
     { value: 'sold', label: 'Vendido' },
@@ -91,16 +94,16 @@ export function StockItemDetailsModal({
     <Modal
       open={open}
       title={`${item.brand} ${item.model}`}
-      subtitle={categoryLabel[item.category] ?? item.category}
+      subtitle={categoryLabel[categoryKey] ?? categoryKey}
       onClose={onClose}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <Badge label={conditionLabel[item.condition] ?? item.condition} tone="active" />
+        <Badge label={conditionLabel[conditionKey] ?? conditionKey} tone="active" />
         <div className="flex items-center gap-2">
-          <Badge label={statusLabel[item.status] ?? item.status} tone={item.status} />
+          <Badge label={statusLabel[statusKey] ?? statusKey} tone={statusKey} />
           <select
             className="h-9 rounded-lg border border-[#E6EBF2] bg-white px-3 text-xs font-medium text-[#0F172A] shadow-sm focus:outline-none focus:ring-2 focus:ring-[rgba(11,74,162,0.25)]"
-            value={item.status}
+            value={statusKey}
             onChange={(event) => onStatusChange(event.target.value as StockItem['status'])}
           >
             {statusOptions.map((option) => (
@@ -126,7 +129,7 @@ export function StockItemDetailsModal({
           <dl className="mt-3 space-y-2 text-sm text-[#0F172A]">
             <div className="flex justify-between gap-3">
               <span className="text-[#5B677A]">Categoría</span>
-              <span>{categoryLabel[item.category] ?? item.category}</span>
+              <span>{(categoryLabel[categoryKey] ?? categoryKey) || '—'}</span>
             </div>
             <div className="flex justify-between gap-3">
               <span className="text-[#5B677A]">Marca</span>
