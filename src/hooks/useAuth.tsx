@@ -118,7 +118,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error('Login sin token válido')
         }
 
+        // Persist token first so any subsequent request (e.g. /auth/me) already sends Bearer.
+        setToken(nextToken)
+
         let nextUser = response.user
+        if (nextUser) {
+          setUser(nextUser)
+        }
+
+        persistAuth(nextToken, nextUser)
+
         if (!nextUser) {
           try {
             nextUser = await fetchAuthMe()
@@ -133,7 +142,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         persistAuth(nextToken, nextUser)
-        setToken(nextToken)
         setUser(nextUser)
       },
       signOut: async () => {
