@@ -8,8 +8,33 @@ type ApiOptions = {
   auth?: boolean
 }
 
+function sanitizeToken(raw: string | null) {
+  if (!raw) return null
+  const token = raw.trim()
+  if (!token || token === 'undefined' || token === 'null') return null
+  return token
+}
+
+function readToken() {
+  if (typeof window === 'undefined') return null
+
+  const primary = sanitizeToken(localStorage.getItem(AUTH_TOKEN_STORAGE_KEY))
+  if (primary) return primary
+
+  const legacyKeys = ['myphone_token', 'auth_token', 'token', 'access_token']
+  for (const key of legacyKeys) {
+    const candidate = sanitizeToken(localStorage.getItem(key))
+    if (candidate) {
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, candidate)
+      return candidate
+    }
+  }
+
+  return null
+}
+
 export async function apiClient<T>(path: string, options: ApiOptions = {}): Promise<T> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) : null
+  const token = readToken()
   const requiresAuth = options.auth ?? true
   const url = /^https?:\/\//.test(path) ? path : `${apiBaseUrl}${path}`
 

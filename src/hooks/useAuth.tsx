@@ -16,12 +16,19 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 const AUTH_USER_STORAGE_KEY = 'myphone_auth_user'
 
+function sanitizeToken(raw: string | null) {
+  if (!raw) return null
+  const value = raw.trim()
+  if (!value || value === 'undefined' || value === 'null') return null
+  return value
+}
+
 function readStoredAuth() {
   if (typeof window === 'undefined') {
     return { token: null, user: null as AuthUser | null }
   }
 
-  const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+  const token = sanitizeToken(localStorage.getItem(AUTH_TOKEN_STORAGE_KEY))
   const userRaw = localStorage.getItem(AUTH_USER_STORAGE_KEY)
   if (!userRaw) {
     return { token, user: null as AuthUser | null }
@@ -35,14 +42,32 @@ function readStoredAuth() {
   }
 }
 
-function persistAuth(token: string, user: AuthUser) {
+function persistAuth(token: string, user: AuthUser | null) {
   localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token)
-  localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user))
+  if (user) {
+    localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user))
+  } else {
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+  }
 }
 
 function clearStoredAuth() {
   localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
   localStorage.removeItem(AUTH_USER_STORAGE_KEY)
+}
+
+function shouldDropSession(error: unknown) {
+  const err = error as Error & { code?: string }
+  const message = String(err?.message ?? '').toLowerCase()
+  const code = String(err?.code ?? '').toLowerCase()
+
+  return (
+    code.includes('unauthorized') ||
+    code.includes('forbidden') ||
+    code.includes('invalid_token') ||
+    message.includes('401') ||
+    message.includes('403')
+  )
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -65,10 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(me)
         localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(me))
       })
-      .catch(() => {
-        clearStoredAuth()
-        setToken(null)
-        setUser(null)
+      .catch((error) => {
+        if (shouldDropSession(error)) {
+          clearStoredAuth()
+          setToken(null)
+          setUser(null)
+          return
+        }
+
+        // Keep token if /auth/me is unavailable but credentials are valid for API usage.
+        setUser(stored.user)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -82,9 +113,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile: user,
       signIn: async (credentials) => {
         const response = await loginWithPassword(credentials)
-        persistAuth(response.token, response.user)
-        setToken(response.token)
-        setUser(response.user)
+        const nextToken = sanitizeToken(response.token)
+        if (!nextToken) {
+          throw new Error('Login sin token válido')
+        }
+
+        let nextUser = response.user
+        if (!nextUser) {
+          try {
+            nextUser = await fetchAuthMe()
+          } catch {
+            nextUser = {
+              id: 'me',
+              email: credentials.email,
+              full_name: credentials.email,
+              role: 'seller',
+            }
+          }
+        }
+
+        persistAuth(nextToken, nextUser)
+        setToken(nextToken)
+        setUser(nextUser)
       },
       signOut: async () => {
         clearStoredAuth()
