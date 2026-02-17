@@ -85,6 +85,7 @@ export function StockPage() {
   const [batteryFilter, setBatteryFilter] = useState('')
   const [promoFilter, setPromoFilter] = useState<'all' | 'promo' | 'no_promo'>('all')
   const [providerFilter, setProviderFilter] = useState('')
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
   const [newOpen, setNewOpen] = useState(false)
   const [reserveOpen, setReserveOpen] = useState(false)
   const [reserveTarget, setReserveTarget] = useState<StockItem | null>(null)
@@ -116,6 +117,16 @@ export function StockPage() {
       return true
     })
   }, [batteryFilter, modelFilter, promoFilter, providerFilter, stateFilter, stockItems, storageFilter])
+
+  const groupedStock = useMemo(
+    () =>
+      stateOptions.map((option) => ({
+        state: option.value,
+        label: option.label,
+        items: filteredStock.filter((item) => resolveState(item) === option.value),
+      })),
+    [filteredStock],
+  )
 
   const newForm = useForm({
     resolver: zodResolver(createSchema),
@@ -238,6 +249,12 @@ export function StockPage() {
     reserveMutation.mutate({ id: reserveTarget.id, payload: reserveSchema.parse(values) })
   }
 
+  const openReserveModal = (item: StockItem) => {
+    setReserveTarget(item)
+    reserveForm.reset({ reserve_type: 'reserva', reserve_amount_ars: null, reserve_notes: '' })
+    setReserveOpen(true)
+  }
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -281,105 +298,220 @@ export function StockPage() {
         <Input placeholder="Proveedor" value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} />
       </div>
 
-      <Table
-        headers={[
-          'Estado',
-          'Modelo',
-          'GB',
-          'Batería',
-          'Color',
-          'Precio',
-          'Detalles',
-          'IMEI',
-          'Ingreso',
-          'Proveedor',
-          'Promo',
-          'Días',
-          'Acciones',
-        ]}
-      >
-        {stockQuery.error ? (
-          <tr>
-            <td className="px-4 py-6 text-sm text-[#B91C1C]" colSpan={13}>
-              No se pudo cargar stock: {(stockQuery.error as Error).message}
-            </td>
-          </tr>
-        ) : stockQuery.isLoading ? (
-          <tr>
-            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={13}>
-              Cargando stock...
-            </td>
-          </tr>
-        ) : filteredStock.length === 0 ? (
-          <tr>
-            <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={13}>
-              Sin registros para los filtros actuales.
-            </td>
-          </tr>
-        ) : (
-          filteredStock.map((item) => {
-            const rowState = resolveState(item)
-            return (
-              <tr key={item.id}>
-                <td className="px-4 py-3 text-sm">
-                  <Select
-                    className="h-9"
-                    value={rowState}
-                    onChange={(event) => stateMutation.mutate({ id: item.id, state: event.target.value as StockState })}
-                  >
-                    {stateOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </Select>
-                </td>
-                <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">{item.model || '—'}</td>
-                <td className="px-4 py-3 text-sm">{item.storage_gb ?? '—'}</td>
-                <td className="px-4 py-3 text-sm">{typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'}</td>
-                <td className="px-4 py-3 text-sm">{item.color || '—'}</td>
-                <td className="px-4 py-3 text-sm">{formatMoney(item.sale_price_ars)}</td>
-                <td className="max-w-[220px] truncate px-4 py-3 text-sm" title={item.details ?? ''}>
-                  {item.details || '—'}
-                </td>
-                <td className="px-4 py-3 text-sm">{item.imei || '—'}</td>
-                <td className="px-4 py-3 text-sm">{formatDate(item.received_at ?? item.created_at)}</td>
-                <td className="px-4 py-3 text-sm">{item.provider_name || '—'}</td>
-                <td className="px-4 py-3 text-sm">
-                  <button
-                    type="button"
-                    onClick={() => promoMutation.mutate({ id: item.id, isPromo: !Boolean(item.is_promo) })}
-                    className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                      item.is_promo ? 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]' : 'bg-[#EEF2F7] text-[#475569]'
-                    }`}
-                  >
-                    {item.is_promo ? 'Sí' : 'No'}
-                  </button>
-                </td>
-                <td className="px-4 py-3 text-sm">{item.days_in_stock ?? '—'}</td>
-                <td className="px-4 py-3 text-sm">
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
-                      Vender
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setReserveTarget(item)
-                        reserveForm.reset({ reserve_type: 'reserva', reserve_amount_ars: null, reserve_notes: '' })
-                        setReserveOpen(true)
-                      }}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">
+          {filteredStock.length} equipos
+        </p>
+        <div className="inline-flex rounded-xl border border-[#E6EBF2] bg-white p-1">
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
+            className={`rounded-lg px-3 py-1 text-xs font-semibold ${
+              viewMode === 'cards' ? 'bg-[#0B4AA2] text-white' : 'text-[#475569]'
+            }`}
+          >
+            Tarjetas
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`rounded-lg px-3 py-1 text-xs font-semibold ${
+              viewMode === 'table' ? 'bg-[#0B4AA2] text-white' : 'text-[#475569]'
+            }`}
+          >
+            Tabla
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'table' ? (
+        <Table
+          headers={[
+            'Estado',
+            'Modelo',
+            'GB',
+            'Batería',
+            'Color',
+            'Precio',
+            'Detalles',
+            'IMEI',
+            'Ingreso',
+            'Proveedor',
+            'Promo',
+            'Días',
+            'Acciones',
+          ]}
+        >
+          {stockQuery.error ? (
+            <tr>
+              <td className="px-4 py-6 text-sm text-[#B91C1C]" colSpan={13}>
+                No se pudo cargar stock: {(stockQuery.error as Error).message}
+              </td>
+            </tr>
+          ) : stockQuery.isLoading ? (
+            <tr>
+              <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={13}>
+                Cargando stock...
+              </td>
+            </tr>
+          ) : filteredStock.length === 0 ? (
+            <tr>
+              <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={13}>
+                Sin registros para los filtros actuales.
+              </td>
+            </tr>
+          ) : (
+            filteredStock.map((item) => {
+              const rowState = resolveState(item)
+              return (
+                <tr key={item.id}>
+                  <td className="px-4 py-3 text-sm">
+                    <Select
+                      className="h-9"
+                      value={rowState}
+                      onChange={(event) => stateMutation.mutate({ id: item.id, state: event.target.value as StockState })}
                     >
-                      Reservar/Señar
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            )
-          })
-        )}
-      </Table>
+                      {stateOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </td>
+                  <td className="px-4 py-3 text-sm font-medium text-[#0F172A]">{item.model || '—'}</td>
+                  <td className="px-4 py-3 text-sm">{item.storage_gb ?? '—'}</td>
+                  <td className="px-4 py-3 text-sm">{typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'}</td>
+                  <td className="px-4 py-3 text-sm">{item.color || '—'}</td>
+                  <td className="px-4 py-3 text-sm">{formatMoney(item.sale_price_ars)}</td>
+                  <td className="max-w-[220px] truncate px-4 py-3 text-sm" title={item.details ?? ''}>
+                    {item.details || '—'}
+                  </td>
+                  <td className="px-4 py-3 text-sm">{item.imei || '—'}</td>
+                  <td className="px-4 py-3 text-sm">{formatDate(item.received_at ?? item.created_at)}</td>
+                  <td className="px-4 py-3 text-sm">{item.provider_name || '—'}</td>
+                  <td className="px-4 py-3 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => promoMutation.mutate({ id: item.id, isPromo: !Boolean(item.is_promo) })}
+                      className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                        item.is_promo ? 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]' : 'bg-[#EEF2F7] text-[#475569]'
+                      }`}
+                    >
+                      {item.is_promo ? 'Sí' : 'No'}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-sm">{item.days_in_stock ?? '—'}</td>
+                  <td className="px-4 py-3 text-sm">
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
+                        Vender
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => openReserveModal(item)}>
+                        Reservar/Señar
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })
+          )}
+        </Table>
+      ) : stockQuery.error ? (
+        <div className="rounded-2xl border border-[rgba(185,28,28,0.2)] bg-[rgba(185,28,28,0.08)] px-4 py-6 text-sm text-[#B91C1C]">
+          No se pudo cargar stock: {(stockQuery.error as Error).message}
+        </div>
+      ) : stockQuery.isLoading ? (
+        <div className="rounded-2xl border border-[#E6EBF2] bg-white px-4 py-6 text-sm text-[#5B677A]">
+          Cargando stock...
+        </div>
+      ) : filteredStock.length === 0 ? (
+        <div className="rounded-2xl border border-[#E6EBF2] bg-white px-4 py-6 text-sm text-[#5B677A]">
+          Sin registros para los filtros actuales.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {groupedStock.map((group) => (
+            <section key={group.state} className="rounded-2xl border border-[#E6EBF2] bg-white p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#334155]">{group.label}</h3>
+                <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-xs font-semibold text-[#334155]">
+                  {group.items.length}
+                </span>
+              </div>
+              {group.items.length === 0 ? (
+                <p className="mt-3 text-sm text-[#64748B]">Sin equipos en este estado.</p>
+              ) : (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {group.items.map((item) => {
+                    const itemState = resolveState(item)
+                    return (
+                      <article key={item.id} className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="text-base font-semibold text-[#0F172A]">{item.model || 'Equipo sin modelo'}</h4>
+                            <p className="text-xs text-[#64748B]">IMEI {item.imei || '—'}</p>
+                          </div>
+                          {item.is_promo ? (
+                            <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[#991B1B]">
+                              Promo
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#475569]">
+                          <span className="rounded-full bg-white px-2 py-1">{item.storage_gb ?? '—'} GB</span>
+                          <span className="rounded-full bg-white px-2 py-1">
+                            Bat {typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'}
+                          </span>
+                          <span className="rounded-full bg-white px-2 py-1">{item.color || 'Sin color'}</span>
+                        </div>
+
+                        <div className="mt-3 space-y-1 text-sm text-[#334155]">
+                          <p className="font-semibold text-[#0F172A]">{formatMoney(item.sale_price_ars)}</p>
+                          <p>Ingreso: {formatDate(item.received_at ?? item.created_at)}</p>
+                          <p>Proveedor: {item.provider_name || '—'}</p>
+                          <p>Días en stock: {item.days_in_stock ?? '—'}</p>
+                          {item.details ? <p className="text-xs text-[#64748B]">Detalle: {item.details}</p> : null}
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          <Select
+                            className="h-9"
+                            value={itemState}
+                            onChange={(event) => stateMutation.mutate({ id: item.id, state: event.target.value as StockState })}
+                          >
+                            {stateOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </Select>
+
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
+                              Vender
+                            </Button>
+                            <Button size="sm" variant="secondary" onClick={() => openReserveModal(item)}>
+                              Reservar/Señar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => promoMutation.mutate({ id: item.id, isPromo: !Boolean(item.is_promo) })}
+                            >
+                              {item.is_promo ? 'Quitar promo' : 'Marcar promo'}
+                            </Button>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
 
       <Modal
         open={newOpen}
