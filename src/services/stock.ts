@@ -3,6 +3,7 @@ import { asArray, asObject, toQueryString } from './normalizers'
 import { requestFirstAvailable } from './request'
 
 const STOCK_ENDPOINTS = ['/api/stock-items']
+const hasSupabaseEnv = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 type StockFilters = {
   state?: string
@@ -86,6 +87,88 @@ function normalizeStockArray(response: unknown): StockItem[] {
   return asArray<Record<string, unknown>>(response).map(normalizeStockItem)
 }
 
+function isRouteNotFoundError(error: unknown) {
+  const err = error as Error & { code?: string }
+  const code = String(err?.code ?? '').toLowerCase()
+  const message = String(err?.message ?? '').toLowerCase()
+
+  return (
+    code.includes('not_found') ||
+    code.includes('route_not_found') ||
+    message.includes('route not found') ||
+    message.includes('api error: 404') ||
+    message.includes(' 404')
+  )
+}
+
+async function getSupabaseClient() {
+  if (!hasSupabaseEnv) {
+    return null
+  }
+
+  try {
+    const module = await import('../lib/supabase')
+    return module.supabase
+  } catch {
+    return null
+  }
+}
+
+async function fetchStockFromSupabase(filters: StockFilters = {}) {
+  const supabase = await getSupabaseClient()
+  if (!supabase) {
+    throw new Error('Stock API no disponible y Supabase no configurado')
+  }
+
+  let query: any = supabase.from('stock_items').select('*').order('created_at', { ascending: false })
+
+  if (filters.state) query = query.eq('state', filters.state)
+  if (filters.status) query = query.eq('status', filters.status)
+  if (filters.statuses?.length) query = query.in('status', filters.statuses)
+  if (filters.category) query = query.eq('category', filters.category)
+  if (filters.model) query = query.ilike('model', `%${filters.model}%`)
+  if (filters.storage_gb != null) query = query.eq('storage_gb', filters.storage_gb)
+  if (filters.battery_min != null) query = query.gte('battery_pct', filters.battery_min)
+  if (filters.battery_max != null) query = query.lte('battery_pct', filters.battery_max)
+  if (filters.promo != null) query = query.eq('is_promo', filters.promo)
+  if (filters.provider) query = query.ilike('provider_name', `%${filters.provider}%`)
+  if (filters.condition) query = query.eq('condition', filters.condition)
+  if (filters.query) {
+    const encoded = filters.query.replaceAll(',', ' ')
+    query = query.or(
+      `model.ilike.%${encoded}%,imei.ilike.%${encoded}%,provider_name.ilike.%${encoded}%,details.ilike.%${encoded}%`,
+    )
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+  return normalizeStockArray(data ?? [])
+}
+
+async function createStockItemFromSupabase(payload: Partial<StockItem>) {
+  const supabase = await getSupabaseClient()
+  if (!supabase) throw new Error('Supabase no configurado')
+  const { data, error } = await supabase.from('stock_items').insert(payload).select('*').single()
+  if (error) throw error
+  return normalizeStockItem((data ?? {}) as Record<string, unknown>)
+}
+
+async function updateStockItemFromSupabase(id: string, payload: Partial<StockItem>) {
+  const supabase = await getSupabaseClient()
+  if (!supabase) throw new Error('Supabase no configurado')
+  const { data, error } = await supabase.from('stock_items').update(payload).eq('id', id).select('*').single()
+  if (error) throw error
+  return normalizeStockItem((data ?? {}) as Record<string, unknown>)
+}
+
+async function deleteStockItemFromSupabase(id: string) {
+  const supabase = await getSupabaseClient()
+  if (!supabase) throw new Error('Supabase no configurado')
+  const { error } = await supabase.from('stock_items').delete().eq('id', id)
+  if (error) throw error
+  return undefined
+}
+
 export async function fetchStock(filters: StockFilters = {}) {
   const query = toQueryString({
     state: filters.state,
@@ -102,24 +185,45 @@ export async function fetchStock(filters: StockFilters = {}) {
     condition: filters.condition,
   })
 
-  const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}${query}`))
-  return normalizeStockArray(response)
+  try {
+    const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}${query}`))
+    return normalizeStockArray(response)
+  } catch (error) {
+    if (isRouteNotFoundError(error) && hasSupabaseEnv) {
+      return fetchStockFromSupabase(filters)
+    }
+    throw error
+  }
 }
 
 export async function createStockItem(payload: Partial<StockItem>) {
-  const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS, {
-    method: 'POST',
-    body: payload,
-  })
-  return asObject<StockItem>(response)
+  try {
+    const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS, {
+      method: 'POST',
+      body: payload,
+    })
+    return asObject<StockItem>(response)
+  } catch (error) {
+    if (isRouteNotFoundError(error) && hasSupabaseEnv) {
+      return createStockItemFromSupabase(payload)
+    }
+    throw error
+  }
 }
 
 export async function updateStockItem(id: string, payload: Partial<StockItem>) {
-  const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
-    method: 'PATCH',
-    body: payload,
-  })
-  return asObject<StockItem>(response)
+  try {
+    const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
+      method: 'PATCH',
+      body: payload,
+    })
+    return asObject<StockItem>(response)
+  } catch (error) {
+    if (isRouteNotFoundError(error) && hasSupabaseEnv) {
+      return updateStockItemFromSupabase(id, payload)
+    }
+    throw error
+  }
 }
 
 export async function upsertStockItem(payload: Partial<StockItem>) {
@@ -155,7 +259,14 @@ export async function reserveStockItem(
 }
 
 export async function deleteStockItem(id: string) {
-  return requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
-    method: 'DELETE',
-  })
+  try {
+    return await requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
+      method: 'DELETE',
+    })
+  } catch (error) {
+    if (isRouteNotFoundError(error) && hasSupabaseEnv) {
+      return deleteStockItemFromSupabase(id)
+    }
+    throw error
+  }
 }
