@@ -142,15 +142,6 @@ export function StockPage() {
     return stockAfterBaseFilters.filter((item) => resolveState(item) === stateFilter)
   }, [stateFilter, stockAfterBaseFilters])
 
-  const countsByState = useMemo(() => {
-    const entries = stateOptions.map((option) => [option.value, 0] as const)
-    const initial = Object.fromEntries(entries) as Record<StockState, number>
-    stockAfterBaseFilters.forEach((item) => {
-      initial[resolveState(item)] += 1
-    })
-    return initial
-  }, [stockAfterBaseFilters])
-
   const sortedStock = useMemo(() => {
     return [...filteredStock].sort((a, b) => {
       const aDate = new Date(a.received_at ?? a.created_at ?? 0).getTime()
@@ -368,31 +359,6 @@ export function StockPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-[#E6EBF2] bg-white p-3">
-            <div className="flex flex-wrap gap-2">
-              {stateOptions.map((option) => {
-                const isActive = stateFilter === option.value
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setStateFilter(isActive ? '' : option.value)}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      isActive
-                        ? 'border-[#0B4AA2] bg-[rgba(11,74,162,0.1)] text-[#0B4AA2]'
-                        : 'border-[#E6EBF2] bg-[#F8FAFC] text-[#334155] hover:border-[#CBD5E1]'
-                    }`}
-                  >
-                    {option.label}
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-[#334155]">
-                      {countsByState[option.value]}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
           <div className="space-y-2">
             {paginatedStock.map((item) => {
               const itemState = resolveState(item)
