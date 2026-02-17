@@ -6,6 +6,31 @@ type LoginResponse = {
   user: AuthUser | null
 }
 
+type SupabaseClient = {
+  auth: {
+    signInWithPassword: (payload: { email: string; password: string }) => Promise<{
+      data: { session: { access_token: string | null } | null; user: Record<string, unknown> | null }
+      error: { message: string } | null
+    }>
+    getUser: () => Promise<{
+      data: { user: Record<string, unknown> | null }
+      error: { message: string } | null
+    }>
+  }
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        maybeSingle: () => Promise<{
+          data: Record<string, unknown> | null
+          error: { message: string } | null
+        }>
+      }
+    }
+  }
+}
+
+const hasSupabaseEnv = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
+
 function asObject(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value as Record<string, unknown>
@@ -13,6 +38,20 @@ function asObject(value: unknown): Record<string, unknown> | null {
 
 function pickString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function toAuthUser(payload: {
+  id: string
+  email: string
+  full_name?: string | null
+  role?: string | null
+}): AuthUser {
+  return {
+    id: payload.id,
+    email: payload.email,
+    full_name: payload.full_name?.trim() || payload.email,
+    role: (payload.role as AuthUser['role']) ?? 'seller',
+  }
 }
 
 function pickToken(payload: Record<string, unknown>): string | null {
@@ -56,12 +95,12 @@ function normalizeUser(value: unknown): AuthUser | null {
   const email = pickString(raw.email)
   if (!id || !email) return null
 
-  return {
+  return toAuthUser({
     id,
     email,
     full_name: pickString(raw.full_name) ?? pickString(raw.name) ?? email,
-    role: (pickString(raw.role) as AuthUser['role']) ?? 'seller',
-  }
+    role: pickString(raw.role),
+  })
 }
 
 function pickUser(payload: Record<string, unknown>): AuthUser | null {
@@ -77,7 +116,113 @@ function pickUser(payload: Record<string, unknown>): AuthUser | null {
   return normalizeUser(data.profile)
 }
 
-export async function loginWithPassword(payload: { email: string; password: string }): Promise<LoginResponse> {
+function isMissingBearerError(error: unknown) {
+  const err = error as Error & { code?: string }
+  const code = String(err?.code ?? '').toLowerCase()
+  const message = String(err?.message ?? '').toLowerCase()
+
+  return code === 'unauthorized' || message.includes('missing bearer token') || message.includes('bearer token')
+}
+
+async function loadSupabaseClient(): Promise<SupabaseClient | null> {
+  if (!hasSupabaseEnv) {
+    return null
+  }
+
+  try {
+    const module = await import('../lib/supabase')
+    return module.supabase as unknown as SupabaseClient
+  } catch {
+    return null
+  }
+}
+
+async function fetchSupabaseProfile(supabase: SupabaseClient, userId: string) {
+  const response = await supabase.from('profiles').select('id,email,full_name,role').eq('id', userId).maybeSingle()
+  return response.data
+}
+
+async function loginWithSupabase(payload: { email: string; password: string }): Promise<LoginResponse> {
+  const supabase = await loadSupabaseClient()
+  if (!supabase) {
+    throw new Error('Supabase auth no está configurado')
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword(payload)
+  if (error) {
+    throw new Error(error.message || 'No se pudo iniciar sesión')
+  }
+
+  const token = pickString(data?.session?.access_token)
+  if (!token) {
+    throw new Error('Supabase login sin token')
+  }
+
+  const rawUser = asObject(data?.user)
+  if (!rawUser) {
+    return {
+      token,
+      user: null,
+    }
+  }
+
+  const id = pickString(rawUser.id)
+  const email = pickString(rawUser.email) ?? payload.email
+  if (!id) {
+    return {
+      token,
+      user: null,
+    }
+  }
+
+  const profile = await fetchSupabaseProfile(supabase, id)
+  const metadata = asObject(rawUser.user_metadata)
+
+  return {
+    token,
+    user: toAuthUser({
+      id,
+      email,
+      full_name: pickString(profile?.full_name) ?? pickString(metadata?.full_name) ?? email,
+      role: pickString(profile?.role),
+    }),
+  }
+}
+
+async function fetchSupabaseMe(): Promise<AuthUser | null> {
+  const supabase = await loadSupabaseClient()
+  if (!supabase) {
+    return null
+  }
+
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data?.user) {
+    return null
+  }
+
+  const rawUser = asObject(data.user)
+  if (!rawUser) {
+    return null
+  }
+
+  const id = pickString(rawUser.id)
+  const email = pickString(rawUser.email)
+  if (!id || !email) {
+    return null
+  }
+
+  const profile = await fetchSupabaseProfile(supabase, id)
+  const metadata = asObject(rawUser.user_metadata)
+
+  return toAuthUser({
+    id,
+    email,
+    full_name: pickString(profile?.full_name) ?? pickString(metadata?.full_name) ?? email,
+    role: pickString(profile?.role),
+  })
+}
+
+async function loginWithBackend(payload: { email: string; password: string }): Promise<LoginResponse> {
   const response = await requestFirstAvailable<unknown>(['/auth/login', '/api/auth/login'], {
     method: 'POST',
     body: payload,
@@ -100,21 +245,60 @@ export async function loginWithPassword(payload: { email: string; password: stri
   }
 }
 
-export async function fetchAuthMe(): Promise<AuthUser> {
-  const response = await requestFirstAvailable<unknown>(['/auth/me', '/api/auth/me'])
-  const body = asObject(response)
+export async function loginWithPassword(payload: { email: string; password: string }): Promise<LoginResponse> {
+  try {
+    return await loginWithBackend(payload)
+  } catch (backendError) {
+    // Railway backend can have all /api routes protected and return missing bearer for /auth/login.
+    if (isMissingBearerError(backendError)) {
+      try {
+        return await loginWithSupabase(payload)
+      } catch (supabaseError) {
+        throw supabaseError
+      }
+    }
 
-  if (!body) {
-    throw new Error('Respuesta inválida de /auth/me')
+    if (hasSupabaseEnv) {
+      try {
+        return await loginWithSupabase(payload)
+      } catch {
+        // ignore and throw backend error below
+      }
+    }
+
+    throw backendError
+  }
+}
+
+export async function fetchAuthMe(): Promise<AuthUser> {
+  try {
+    const response = await requestFirstAvailable<unknown>(['/auth/me', '/api/auth/me'])
+    const body = asObject(response)
+
+    if (!body) {
+      throw new Error('Respuesta inválida de /auth/me')
+    }
+
+    const direct = normalizeUser(body)
+    if (direct) return direct
+
+    const fromData = asObject(body.data)
+    if (fromData) {
+      const normalized = normalizeUser(fromData.user) ?? normalizeUser(fromData.profile) ?? normalizeUser(fromData)
+      if (normalized) return normalized
+    }
+  } catch (backendError) {
+    const fromSupabase = await fetchSupabaseMe()
+    if (fromSupabase) {
+      return fromSupabase
+    }
+
+    throw backendError
   }
 
-  const direct = normalizeUser(body)
-  if (direct) return direct
-
-  const fromData = asObject(body.data)
-  if (fromData) {
-    const normalized = normalizeUser(fromData.user) ?? normalizeUser(fromData.profile) ?? normalizeUser(fromData)
-    if (normalized) return normalized
+  const fromSupabase = await fetchSupabaseMe()
+  if (fromSupabase) {
+    return fromSupabase
   }
 
   throw new Error('No se pudo resolver usuario autenticado')
