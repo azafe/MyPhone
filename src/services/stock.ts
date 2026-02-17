@@ -35,9 +35,13 @@ function diffDays(fromIso?: string | null) {
   return Math.max(0, Math.floor((utcNow - utcFrom) / 86400000))
 }
 
-function mapLegacyStatus(status?: string | null, category?: string | null): StockState {
+function mapLegacyStatus(
+  status?: string | null,
+  category?: string | null,
+  reserveType?: 'reserva' | 'sena' | string | null,
+): StockState {
   if (status === 'sold') return 'sold'
-  if (status === 'reserved') return 'reserved'
+  if (status === 'reserved') return reserveType === 'sena' ? 'deposit' : 'reserved'
   if (status === 'drawer') return 'drawer'
   if (status === 'service_tech') return 'service_tech'
   if (category === 'outlet') return 'outlet'
@@ -46,8 +50,66 @@ function mapLegacyStatus(status?: string | null, category?: string | null): Stoc
   return 'new'
 }
 
+function mapStateToLegacy(state?: StockState | string | null): {
+  status?: StockItem['status']
+  category?: string
+} {
+  switch (state) {
+    case 'outlet':
+      return { status: 'available', category: 'outlet' }
+    case 'used_premium':
+      return { status: 'available', category: 'used_premium' }
+    case 'new':
+      return { status: 'available', category: 'new' }
+    case 'reserved':
+      return { status: 'reserved' }
+    case 'deposit':
+      return { status: 'reserved' }
+    case 'drawer':
+      return { status: 'drawer' }
+    case 'service_tech':
+      return { status: 'service_tech' }
+    case 'sold':
+      return { status: 'sold' }
+    default:
+      return {}
+  }
+}
+
+function sanitizeLegacyStatus(status?: unknown): StockItem['status'] | undefined {
+  if (typeof status !== 'string') return undefined
+  if (status === 'outlet' || status === 'used_premium' || status === 'new') return 'available'
+  if (status === 'deposit') return 'reserved'
+  return status as StockItem['status']
+}
+
+function toLegacySupabasePayload(payload: Partial<StockItem>): Partial<StockItem> {
+  const legacyPayload: Partial<StockItem> = { ...payload }
+  const mapped = mapStateToLegacy(legacyPayload.state)
+
+  delete legacyPayload.state
+
+  if (legacyPayload.status == null && mapped.status) {
+    legacyPayload.status = mapped.status
+  } else {
+    legacyPayload.status = sanitizeLegacyStatus(legacyPayload.status)
+  }
+
+  if (!legacyPayload.category && mapped.category) {
+    legacyPayload.category = mapped.category
+  }
+
+  return legacyPayload
+}
+
 function normalizeStockItem(raw: Record<string, unknown>): StockItem {
-  const state = (raw.state as StockState | undefined) ?? mapLegacyStatus((raw.status as string | undefined) ?? null, (raw.category as string | undefined) ?? null)
+  const state =
+    (raw.state as StockState | undefined) ??
+    mapLegacyStatus(
+      (raw.status as string | undefined) ?? null,
+      (raw.category as string | undefined) ?? null,
+      (raw.reserve_type as string | undefined) ?? null,
+    )
   const receivedAt = (raw.received_at as string | undefined) ?? (raw.created_at as string | undefined) ?? null
 
   return {
@@ -122,7 +184,6 @@ async function fetchStockFromSupabase(filters: StockFilters = {}) {
 
   let query: any = supabase.from('stock_items').select('*').order('created_at', { ascending: false })
 
-  if (filters.state) query = query.eq('state', filters.state)
   if (filters.status) query = query.eq('status', filters.status)
   if (filters.statuses?.length) query = query.in('status', filters.statuses)
   if (filters.category) query = query.eq('category', filters.category)
@@ -142,13 +203,18 @@ async function fetchStockFromSupabase(filters: StockFilters = {}) {
 
   const { data, error } = await query
   if (error) throw error
-  return normalizeStockArray(data ?? [])
+
+  let items = normalizeStockArray(data ?? [])
+  if (filters.state) {
+    items = items.filter((item) => item.state === filters.state)
+  }
+  return items
 }
 
 async function createStockItemFromSupabase(payload: Partial<StockItem>) {
   const supabase = await getSupabaseClient()
   if (!supabase) throw new Error('Supabase no configurado')
-  const { data, error } = await supabase.from('stock_items').insert(payload).select('*').single()
+  const { data, error } = await supabase.from('stock_items').insert(toLegacySupabasePayload(payload)).select('*').single()
   if (error) throw error
   return normalizeStockItem((data ?? {}) as Record<string, unknown>)
 }
@@ -156,7 +222,7 @@ async function createStockItemFromSupabase(payload: Partial<StockItem>) {
 async function updateStockItemFromSupabase(id: string, payload: Partial<StockItem>) {
   const supabase = await getSupabaseClient()
   if (!supabase) throw new Error('Supabase no configurado')
-  const { data, error } = await supabase.from('stock_items').update(payload).eq('id', id).select('*').single()
+  const { data, error } = await supabase.from('stock_items').update(toLegacySupabasePayload(payload)).eq('id', id).select('*').single()
   if (error) throw error
   return normalizeStockItem((data ?? {}) as Record<string, unknown>)
 }
@@ -234,7 +300,13 @@ export async function upsertStockItem(payload: Partial<StockItem>) {
 }
 
 export async function setStockState(id: string, state: StockState, extra: Partial<StockItem> = {}) {
-  return updateStockItem(id, { state, ...extra })
+  const mapped = mapStateToLegacy(state)
+  return updateStockItem(id, {
+    state,
+    status: mapped.status,
+    category: mapped.category,
+    ...extra,
+  })
 }
 
 export async function setStockStatus(id: string, status: string, extra: Partial<StockItem> = {}) {
@@ -249,9 +321,11 @@ export async function reserveStockItem(
   id: string,
   payload: { reserve_type: 'reserva' | 'sena'; reserve_amount_ars?: number; reserve_notes?: string },
 ) {
+  const state = payload.reserve_type === 'reserva' ? 'reserved' : 'deposit'
+  const mapped = mapStateToLegacy(state)
   return updateStockItem(id, {
-    state: payload.reserve_type === 'reserva' ? 'reserved' : 'deposit',
-    status: payload.reserve_type === 'reserva' ? 'reserved' : 'deposit',
+    state,
+    status: mapped.status,
     reserve_type: payload.reserve_type,
     reserve_amount_ars: payload.reserve_amount_ars,
     reserve_notes: payload.reserve_notes,

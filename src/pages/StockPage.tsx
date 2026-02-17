@@ -211,7 +211,7 @@ export function StockPage() {
   })
 
   const stateMutation = useMutation({
-    mutationFn: ({ id, state }: { id: string; state: StockState }) => setStockState(id, state, { status: state }),
+    mutationFn: ({ id, state }: { id: string; state: StockState }) => setStockState(id, state),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock'] })
       toast.success('Estado actualizado')
