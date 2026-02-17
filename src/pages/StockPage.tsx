@@ -24,6 +24,8 @@ const stateOptions: Array<{ value: StockState; label: string }> = [
   { value: 'sold', label: 'Vendido' },
 ]
 
+const storageOptions = [64, 128, 256, 512] as const
+
 const stateLabelMap = stateOptions.reduce(
   (acc, option) => {
     acc[option.value] = option.label
@@ -315,13 +317,14 @@ export function StockPage() {
           ))}
         </Select>
         <Input placeholder="Modelo" value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} />
-        <Input
-          type="number"
-          min={1}
-          placeholder="GB"
-          value={storageFilter}
-          onChange={(event) => setStorageFilter(event.target.value)}
-        />
+        <Select value={storageFilter} onChange={(event) => setStorageFilter(event.target.value)}>
+          <option value="">GB</option>
+          {storageOptions.map((gb) => (
+            <option key={gb} value={gb}>
+              {gb} GB
+            </option>
+          ))}
+        </Select>
         <Input
           type="number"
           min={0}
