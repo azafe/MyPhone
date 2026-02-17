@@ -2,7 +2,7 @@ import type { StockItem, StockState } from '../types'
 import { asArray, asObject, toQueryString } from './normalizers'
 import { requestFirstAvailable } from './request'
 
-const STOCK_ENDPOINTS = ['/api/stock-items', '/api/stock']
+const STOCK_ENDPOINTS = ['/api/stock-items']
 
 type StockFilters = {
   state?: string
