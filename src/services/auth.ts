@@ -223,7 +223,7 @@ async function fetchSupabaseMe(): Promise<AuthUser | null> {
 }
 
 async function loginWithBackend(payload: { email: string; password: string }): Promise<LoginResponse> {
-  const response = await requestFirstAvailable<unknown>(['/auth/login', '/api/auth/login'], {
+  const response = await requestFirstAvailable<unknown>(['/api/auth/login'], {
     method: 'POST',
     body: payload,
     auth: false,
@@ -246,10 +246,16 @@ async function loginWithBackend(payload: { email: string; password: string }): P
 }
 
 export async function loginWithPassword(payload: { email: string; password: string }): Promise<LoginResponse> {
+  if (hasSupabaseEnv) {
+    // In current production backend, /api/auth/login is protected by bearer middleware.
+    // Prefer Supabase direct auth to keep legacy credentials working.
+    return loginWithSupabase(payload)
+  }
+
   try {
     return await loginWithBackend(payload)
   } catch (backendError) {
-    // Railway backend can have all /api routes protected and return missing bearer for /auth/login.
+    // Railway backend can have all /api routes protected and return missing bearer for /api/auth/login.
     if (isMissingBearerError(backendError)) {
       try {
         return await loginWithSupabase(payload)
@@ -271,8 +277,15 @@ export async function loginWithPassword(payload: { email: string; password: stri
 }
 
 export async function fetchAuthMe(): Promise<AuthUser> {
+  if (hasSupabaseEnv) {
+    const userFromSupabase = await fetchSupabaseMe()
+    if (userFromSupabase) {
+      return userFromSupabase
+    }
+  }
+
   try {
-    const response = await requestFirstAvailable<unknown>(['/auth/me', '/api/auth/me'])
+    const response = await requestFirstAvailable<unknown>(['/api/auth/me'])
     const body = asObject(response)
 
     if (!body) {
