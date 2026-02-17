@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
@@ -95,6 +95,8 @@ const reserveSchema = z.object({
   reserve_notes: z.string().optional(),
 })
 
+const PAGE_SIZE = 40
+
 export function StockPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -104,7 +106,8 @@ export function StockPage() {
   const [batteryFilter, setBatteryFilter] = useState('')
   const [promoFilter, setPromoFilter] = useState<'all' | 'promo' | 'no_promo'>('all')
   const [providerFilter, setProviderFilter] = useState('')
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
+  const [viewMode, setViewMode] = useState<'list' | 'table'>('list')
+  const [page, setPage] = useState(1)
   const [newOpen, setNewOpen] = useState(false)
   const [reserveOpen, setReserveOpen] = useState(false)
   const [reserveTarget, setReserveTarget] = useState<StockItem | null>(null)
@@ -157,6 +160,24 @@ export function StockPage() {
       return bDate - aDate
     })
   }, [filteredStock])
+
+  useEffect(() => {
+    setPage(1)
+  }, [stateFilter, modelFilter, storageFilter, batteryFilter, promoFilter, providerFilter])
+
+  const totalPages = Math.max(1, Math.ceil(sortedStock.length / PAGE_SIZE))
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  const pageStart = (page - 1) * PAGE_SIZE
+  const pageEnd = Math.min(pageStart + PAGE_SIZE, sortedStock.length)
+
+  const paginatedStock = useMemo(
+    () => sortedStock.slice(pageStart, pageStart + PAGE_SIZE),
+    [pageStart, sortedStock],
+  )
 
   const newForm = useForm({
     resolver: zodResolver(createSchema),
@@ -335,12 +356,12 @@ export function StockPage() {
         <div className="inline-flex rounded-xl border border-[#E6EBF2] bg-white p-1">
           <button
             type="button"
-            onClick={() => setViewMode('cards')}
+            onClick={() => setViewMode('list')}
             className={`rounded-lg px-3 py-1 text-xs font-semibold ${
-              viewMode === 'cards' ? 'bg-[#0B4AA2] text-white' : 'text-[#475569]'
+              viewMode === 'list' ? 'bg-[#0B4AA2] text-white' : 'text-[#475569]'
             }`}
           >
-            Tarjetas
+            Lista
           </button>
           <button
             type="button"
@@ -391,7 +412,7 @@ export function StockPage() {
               </td>
             </tr>
           ) : (
-            filteredStock.map((item) => {
+            paginatedStock.map((item) => {
               const rowState = resolveState(item)
               return (
                 <tr key={item.id}>
@@ -485,70 +506,71 @@ export function StockPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {sortedStock.map((item) => {
+          <div className="hidden rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#475569] md:grid md:grid-cols-[2.2fr_1.1fr_1fr_1.2fr]">
+            <p>Equipo</p>
+            <p>Precio / Proveedor</p>
+            <p>Estado / Promo</p>
+            <p>Acciones</p>
+          </div>
+
+          <div className="space-y-2">
+            {paginatedStock.map((item) => {
               const itemState = resolveState(item)
               return (
-                <article key={item.id} className="rounded-2xl border border-[#E6EBF2] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${stateBadgeClass[itemState]}`}>
-                      {stateLabelMap[itemState]}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-[11px] font-semibold text-[#334155]">
-                        {item.days_in_stock ?? '—'} días
-                      </span>
-                      {item.is_promo ? (
-                        <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[#991B1B]">
-                          Promo
+                <article key={item.id} className="rounded-xl border border-[#E6EBF2] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
+                  <div className="grid gap-3 md:grid-cols-[2.2fr_1.1fr_1fr_1.2fr] md:items-center">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${stateBadgeClass[itemState]}`}>
+                          {stateLabelMap[itemState]}
                         </span>
-                      ) : null}
+                        {item.is_promo ? (
+                          <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[#991B1B]">
+                            Promo
+                          </span>
+                        ) : null}
+                        <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-[11px] font-semibold text-[#334155]">
+                          {item.days_in_stock ?? '—'} días
+                        </span>
+                      </div>
+                      <h4 className="mt-2 text-base font-semibold leading-tight text-[#0F172A]">{item.model || 'Equipo sin modelo'}</h4>
+                      <p className="text-xs text-[#64748B]">IMEI {item.imei || '—'}</p>
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-[#475569]">
+                        <span>{item.storage_gb ?? '—'} GB</span>
+                        <span>•</span>
+                        <span>Bat {typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'}</span>
+                        <span>•</span>
+                        <span>{item.color || 'Sin color'}</span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="mt-2">
-                    <h4 className="text-base font-semibold leading-tight text-[#0F172A]">{item.model || 'Equipo sin modelo'}</h4>
-                    <p className="text-xs text-[#64748B]">IMEI {item.imei || '—'}</p>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#475569]">
-                    <span className="rounded-full bg-[#F8FAFC] px-2 py-1">{item.storage_gb ?? '—'} GB</span>
-                    <span className="rounded-full bg-[#F8FAFC] px-2 py-1">
-                      Bat {typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'}
-                    </span>
-                    <span className="rounded-full bg-[#F8FAFC] px-2 py-1">{item.color || 'Sin color'}</span>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[#334155]">
-                    <div className="rounded-lg bg-[#F8FAFC] p-2">
-                      <p className="text-[11px] uppercase tracking-[0.08em] text-[#64748B]">Precio</p>
-                      <p className="text-sm font-semibold text-[#0F172A]">{formatMoney(item.sale_price_ars)}</p>
+                    <div className="space-y-1 text-sm text-[#334155]">
+                      <p className="text-lg font-semibold text-[#0F172A]">{formatMoney(item.sale_price_ars)}</p>
+                      <p className="truncate text-xs text-[#64748B]">Proveedor: {item.provider_name || '—'}</p>
+                      <p className="text-xs text-[#64748B]">Ingreso: {formatDate(item.received_at ?? item.created_at)}</p>
                     </div>
-                    <div className="rounded-lg bg-[#F8FAFC] p-2">
-                      <p className="text-[11px] uppercase tracking-[0.08em] text-[#64748B]">Proveedor</p>
-                      <p className="truncate text-sm font-medium text-[#0F172A]">{item.provider_name || '—'}</p>
-                    </div>
-                    <div className="col-span-2 rounded-lg bg-[#F8FAFC] p-2">
-                      <p className="text-[11px] uppercase tracking-[0.08em] text-[#64748B]">Ingreso</p>
-                      <p className="text-sm font-medium text-[#0F172A]">{formatDate(item.received_at ?? item.created_at)}</p>
-                    </div>
-                    {item.details ? (
-                      <div className="col-span-2 rounded-lg border border-[#E6EBF2] p-2 text-xs text-[#475569]">{item.details}</div>
-                    ) : null}
-                  </div>
 
-                  <div className="mt-3 space-y-2">
-                    <Select
-                      className="h-9 text-xs"
-                      value={itemState}
-                      onChange={(event) => stateMutation.mutate({ id: item.id, state: event.target.value as StockState })}
-                    >
-                      {stateOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </Select>
+                    <div className="space-y-2">
+                      <Select
+                        className="h-9 text-xs"
+                        value={itemState}
+                        onChange={(event) => stateMutation.mutate({ id: item.id, state: event.target.value as StockState })}
+                      >
+                        {stateOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-full justify-start md:justify-center"
+                        onClick={() => promoMutation.mutate({ id: item.id, isPromo: !Boolean(item.is_promo) })}
+                      >
+                        {item.is_promo ? 'Quitar promo' : 'Marcar promo'}
+                      </Button>
+                    </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <Button size="sm" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
@@ -558,21 +580,42 @@ export function StockPage() {
                         Reservar/Señar
                       </Button>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="w-full"
-                      onClick={() => promoMutation.mutate({ id: item.id, isPromo: !Boolean(item.is_promo) })}
-                    >
-                      {item.is_promo ? 'Quitar promo' : 'Marcar promo'}
-                    </Button>
                   </div>
+                  {item.details ? (
+                    <p className="mt-2 truncate rounded-lg border border-[#E6EBF2] bg-[#F8FAFC] px-2 py-1 text-xs text-[#475569]">
+                      {item.details}
+                    </p>
+                  ) : null}
                 </article>
               )
             })}
           </div>
         </div>
       )}
+
+      {!stockQuery.error && !stockQuery.isLoading && filteredStock.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E6EBF2] bg-white px-3 py-2">
+          <p className="text-xs text-[#475569]">
+            Mostrando {pageStart + 1}-{pageEnd} de {sortedStock.length} equipos
+          </p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+              Anterior
+            </Button>
+            <span className="text-xs font-semibold text-[#334155]">
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={page >= totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <Modal
         open={newOpen}
