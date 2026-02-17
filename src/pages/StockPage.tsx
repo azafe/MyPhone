@@ -393,13 +393,6 @@ export function StockPage() {
             </div>
           </div>
 
-          <div className="hidden rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#475569] md:grid md:grid-cols-[2.2fr_1.1fr_1fr_1fr]">
-            <p>Equipo</p>
-            <p>Precio / Proveedor</p>
-            <p>Estado / Promo</p>
-            <p>Acciones</p>
-          </div>
-
           <div className="space-y-2">
             {paginatedStock.map((item) => {
               const itemState = resolveState(item)
