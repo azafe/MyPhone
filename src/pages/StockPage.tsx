@@ -298,7 +298,13 @@ export function StockPage() {
           'Acciones',
         ]}
       >
-        {stockQuery.isLoading ? (
+        {stockQuery.error ? (
+          <tr>
+            <td className="px-4 py-6 text-sm text-[#B91C1C]" colSpan={13}>
+              No se pudo cargar stock: {(stockQuery.error as Error).message}
+            </td>
+          </tr>
+        ) : stockQuery.isLoading ? (
           <tr>
             <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={13}>
               Cargando stock...
