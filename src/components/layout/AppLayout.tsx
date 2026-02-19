@@ -3,8 +3,9 @@ import { cn } from '../../lib/utils'
 import { useState, type ReactNode } from 'react'
 import logo from '../../assets/myphone.png'
 import { UserMenu } from './UserMenu'
+import { useAuth } from '../../hooks/useAuth'
 
-const navItems = [
+const baseNavItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { to: '/stock', label: 'Stock', icon: 'box' },
   { to: '/sales', label: 'Ventas', icon: 'sale' },
@@ -14,7 +15,12 @@ const navItems = [
   { to: '/calculator', label: 'Calculadora', icon: 'card' },
 ]
 
-const bottomNavItems = [
+const adminNavItems = [
+  { to: '/finance', label: 'Finance', icon: 'chart' },
+  { to: '/admin/users', label: 'Usuarios', icon: 'users' },
+]
+
+const baseBottomNavItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { to: '/stock', label: 'Stock', icon: 'box' },
   { to: '/sales/new', label: 'Nueva', icon: 'plus' },
@@ -71,10 +77,33 @@ const icons: Record<string, ReactNode> = {
       <path d="M5 12h14" />
     </svg>
   ),
+  chart: (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M4 19h16" />
+      <path d="M7 16V9" />
+      <path d="M12 16V6" />
+      <path d="M17 16v-4" />
+    </svg>
+  ),
+  users: (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="3" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a3 3 0 0 1 0 5.75" />
+    </svg>
+  ),
 }
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
+  const { profile } = useAuth()
+  const role = String(profile?.role ?? '').toLowerCase()
+  const isAdmin = role === 'admin'
+  const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems
+  const bottomNavItems = isAdmin
+    ? [...baseBottomNavItems.slice(0, 4), { to: '/finance', label: 'Finance', icon: 'chart' }]
+    : baseBottomNavItems
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] text-[#0F172A]">
