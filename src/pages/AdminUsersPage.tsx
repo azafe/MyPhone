@@ -60,6 +60,9 @@ export function AdminUsersPage() {
 
       <Card className="p-5">
         <h3 className="text-lg font-semibold text-[#0F172A]">Nuevo vendedor</h3>
+        <p className="mt-2 text-xs text-[#64748B]">
+          Carga manual de usuarios. Para seeds masivos, usar un script/backend protegido (no desde cliente).
+        </p>
         <form className="mt-4 grid gap-3 md:grid-cols-4" onSubmit={form.handleSubmit(onSubmit)}>
           <Field label="Email">
             <Input {...form.register('email')} />
