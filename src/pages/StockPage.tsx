@@ -261,15 +261,38 @@ export function StockPage() {
     },
   })
 
-  const handleCreate = (values: unknown) => {
+  const handleCreate = async (values: unknown) => {
     const parsed = createSchema.parse(values)
-    const rows = fetchedStock
-    const duplicatedImei = rows.some(
-      (item) => String(item.imei ?? '').trim() !== '' && String(item.imei).trim() === parsed.imei.trim(),
+    const normalizedImei = parsed.imei.trim()
+    const duplicatedImeiInPage = fetchedStock.some(
+      (item) => String(item.imei ?? '').trim() !== '' && String(item.imei).trim() === normalizedImei,
     )
 
-    if (duplicatedImei) {
+    if (duplicatedImeiInPage) {
       toast.error('IMEI duplicado. Debe ser único.')
+      return
+    }
+
+    try {
+      const lookup = await fetchStockPage({
+        query: normalizedImei,
+        page: 1,
+        page_size: 100,
+        sort_by: 'received_at',
+        sort_dir: 'desc',
+      })
+
+      const duplicatedImeiInServer = lookup.items.some(
+        (item) => String(item.imei ?? '').trim() !== '' && String(item.imei).trim() === normalizedImei,
+      )
+
+      if (duplicatedImeiInServer) {
+        toast.error('IMEI duplicado. Debe ser único.')
+        return
+      }
+    } catch (error) {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo validar IMEI')
       return
     }
 
@@ -284,7 +307,7 @@ export function StockPage() {
       color: parsed.color?.trim() || null,
       sale_price_ars: parsed.sale_price_ars,
       details: parsed.details?.trim() || null,
-      imei: parsed.imei.trim(),
+      imei: normalizedImei,
       received_at: parsed.received_at,
       provider_name: parsed.provider_name?.trim() || null,
       is_promo: parsed.is_promo,

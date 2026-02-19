@@ -90,8 +90,9 @@ export function SalesPage() {
       }),
   })
 
-  const fetchedSales = salesQuery.data?.items ?? EMPTY_SALES
-  const usingServerPagination = Boolean(salesQuery.data?.serverPagination)
+  const salesPageData = salesQuery.data
+  const fetchedSales = salesPageData?.items ?? EMPTY_SALES
+  const usingServerPagination = Boolean(salesPageData?.serverPagination)
 
   const sortedSales = useMemo(() => {
     if (usingServerPagination) {
@@ -116,18 +117,18 @@ export function SalesPage() {
   const pageEnd = totalCount === 0 ? 0 : Math.min((currentPage - 1) * PAGE_SIZE + paginatedSales.length, totalCount)
 
   const totals = useMemo(() => {
-    const fallbackTotalArs = paginatedSales.reduce((sum, sale) => sum + Number(sale.total_ars || 0), 0)
-    const fallbackPendingArs = paginatedSales.reduce((sum, sale) => sum + Number(sale.balance_due_ars || 0), 0)
-    const totalArs = usingServerPagination ? Number(salesQuery.data?.total_ars ?? fallbackTotalArs) : sortedSales.reduce((sum, sale) => sum + Number(sale.total_ars || 0), 0)
+    const totalArs = usingServerPagination
+      ? (typeof salesPageData?.total_ars === 'number' ? salesPageData.total_ars : null)
+      : sortedSales.reduce((sum, sale) => sum + Number(sale.total_ars || 0), 0)
     const pendingArs = usingServerPagination
-      ? Number(salesQuery.data?.pending_ars ?? fallbackPendingArs)
+      ? (typeof salesPageData?.pending_ars === 'number' ? salesPageData.pending_ars : null)
       : sortedSales.reduce((sum, sale) => sum + Number(sale.balance_due_ars || 0), 0)
     return {
       totalArs,
       pendingArs,
       count: totalCount,
     }
-  }, [paginatedSales, salesQuery.data?.pending_ars, salesQuery.data?.total_ars, sortedSales, totalCount, usingServerPagination])
+  }, [salesPageData, sortedSales, totalCount, usingServerPagination])
 
   const handleFromChange = (value: string) => {
     setFrom(value)

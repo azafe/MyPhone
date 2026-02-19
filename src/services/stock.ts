@@ -97,7 +97,7 @@ function extractPaginationMeta(response: unknown) {
     total,
     page,
     pageSize,
-    serverPagination: total != null || page != null || pageSize != null,
+    serverPagination: total != null,
   }
 }
 
