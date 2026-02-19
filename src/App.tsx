@@ -18,7 +18,7 @@ function isChunkLoadError(error: unknown) {
   )
 }
 
-function lazyWithRetry<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
+function lazyWithRetry<T extends ComponentType<object>>(loader: () => Promise<{ default: T }>) {
   return lazy(async () => {
     try {
       const module = await loader()

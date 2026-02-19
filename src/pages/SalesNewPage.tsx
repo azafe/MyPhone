@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import toast from 'react-hot-toast'
@@ -95,12 +94,20 @@ const schema = z
     })
   })
 
+type SaleFormInput = z.input<typeof schema>
+type SaleFormValues = z.output<typeof schema>
+type SaleFormItem = SaleFormInput['items'][number]
+type SaleFormPayment = SaleFormInput['payments'][number]
+
+const EMPTY_ITEMS: SaleFormItem[] = []
+const EMPTY_PAYMENTS: SaleFormPayment[] = []
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function getArsAmount(payment: Record<string, unknown>, fxRate: number) {
-  const currency = String(payment.currency ?? 'ARS')
+function getArsAmount(payment: SaleFormPayment, fxRate: number) {
+  const currency = payment.currency
   const amount = Number(payment.amount ?? 0)
   if (currency === 'ARS') return amount
   if (!fxRate || fxRate <= 0) return 0
@@ -131,7 +138,7 @@ export function SalesNewPage() {
     })
   }, [stockQuery.data])
 
-  const form = useForm({
+  const form = useForm<SaleFormInput>({
     resolver: zodResolver(schema),
     defaultValues: {
       sale_date: todayISO(),
@@ -147,10 +154,15 @@ export function SalesNewPage() {
     },
   })
 
-  const items = (form.watch('items') ?? []) as Array<Record<string, unknown>>
-  const payments = (form.watch('payments') ?? []) as Array<Record<string, unknown>>
-  const currency = String(form.watch('currency') ?? 'ARS')
-  const fxRate = Number(form.watch('fx_rate_used') ?? 0)
+  const watchedItems = useWatch({ control: form.control, name: 'items' })
+  const watchedPayments = useWatch({ control: form.control, name: 'payments' })
+  const watchedCurrency = useWatch({ control: form.control, name: 'currency' })
+  const watchedFxRate = useWatch({ control: form.control, name: 'fx_rate_used' })
+
+  const items = watchedItems ?? EMPTY_ITEMS
+  const payments = watchedPayments ?? EMPTY_PAYMENTS
+  const currency = watchedCurrency ?? 'ARS'
+  const fxRate = Number(watchedFxRate ?? 0)
 
   const totalArs = useMemo(
     () => items.reduce((sum, item) => sum + Number(item.sale_price_ars || 0), 0),
@@ -241,13 +253,13 @@ export function SalesNewPage() {
     )
   }
 
-  const updateItem = (index: number, patch: Record<string, unknown>) => {
+  const updateItem = (index: number, patch: Partial<SaleFormItem>) => {
     const next = [...items]
     next[index] = { ...next[index], ...patch }
     form.setValue('items', next, { shouldDirty: true, shouldValidate: true })
   }
 
-  const updatePayment = (index: number, patch: Record<string, unknown>) => {
+  const updatePayment = (index: number, patch: Partial<SaleFormPayment>) => {
     const next = [...payments]
     next[index] = { ...next[index], ...patch }
     form.setValue('payments', next, { shouldDirty: true, shouldValidate: true })
@@ -264,8 +276,8 @@ export function SalesNewPage() {
     })
   }
 
-  const onSubmit = (values: unknown) => {
-    const parsed = schema.parse(values)
+  const onSubmit = (values: SaleFormInput) => {
+    const parsed: SaleFormValues = schema.parse(values)
 
     if (totalArs <= 0) {
       toast.error('El total debe ser mayor a 0')

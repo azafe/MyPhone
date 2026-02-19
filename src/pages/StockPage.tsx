@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -125,10 +125,9 @@ export function StockPage() {
       }),
   })
 
-  const stockItems = stockQuery.data ?? []
-
   const stockAfterBaseFilters = useMemo(() => {
-    return stockItems.filter((item) => {
+    const rows = stockQuery.data ?? []
+    return rows.filter((item) => {
       if (modelFilter && !String(item.model ?? '').toLowerCase().includes(modelFilter.toLowerCase())) return false
       if (providerFilter && !String(item.provider_name ?? '').toLowerCase().includes(providerFilter.toLowerCase())) return false
       if (storageFilter && Number(item.storage_gb ?? 0) !== Number(storageFilter)) return false
@@ -137,7 +136,7 @@ export function StockPage() {
       if (promoFilter === 'no_promo' && item.is_promo) return false
       return true
     })
-  }, [batteryFilter, modelFilter, promoFilter, providerFilter, stockItems, storageFilter])
+  }, [batteryFilter, modelFilter, promoFilter, providerFilter, stockQuery.data, storageFilter])
 
   const filteredStock = useMemo(() => {
     if (!stateFilter) return stockAfterBaseFilters
@@ -152,17 +151,9 @@ export function StockPage() {
     })
   }, [filteredStock])
 
-  useEffect(() => {
-    setPage(1)
-  }, [stateFilter, modelFilter, storageFilter, batteryFilter, promoFilter, providerFilter])
-
   const totalPages = Math.max(1, Math.ceil(sortedStock.length / PAGE_SIZE))
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
-
-  const pageStart = (page - 1) * PAGE_SIZE
+  const safePage = Math.min(page, totalPages)
+  const pageStart = (safePage - 1) * PAGE_SIZE
   const pageEnd = Math.min(pageStart + PAGE_SIZE, sortedStock.length)
 
   const paginatedStock = useMemo(
@@ -190,6 +181,7 @@ export function StockPage() {
       reserve_notes: '',
     },
   })
+  const reserveAmountArs = useWatch({ control: reserveForm.control, name: 'reserve_amount_ars' })
 
   const createMutation = useMutation({
     mutationFn: createStockItem,
@@ -259,7 +251,8 @@ export function StockPage() {
 
   const handleCreate = (values: unknown) => {
     const parsed = createSchema.parse(values)
-    const duplicatedImei = stockItems.some(
+    const rows = stockQuery.data ?? []
+    const duplicatedImei = rows.some(
       (item) => String(item.imei ?? '').trim() !== '' && String(item.imei).trim() === parsed.imei.trim(),
     )
 
@@ -297,6 +290,36 @@ export function StockPage() {
     setReserveOpen(true)
   }
 
+  const handleStateFilterChange = (value: string) => {
+    setStateFilter(value)
+    setPage(1)
+  }
+
+  const handleModelFilterChange = (value: string) => {
+    setModelFilter(value)
+    setPage(1)
+  }
+
+  const handleStorageFilterChange = (value: string) => {
+    setStorageFilter(value)
+    setPage(1)
+  }
+
+  const handleBatteryFilterChange = (value: string) => {
+    setBatteryFilter(value)
+    setPage(1)
+  }
+
+  const handlePromoFilterChange = (value: 'all' | 'promo' | 'no_promo') => {
+    setPromoFilter(value)
+    setPage(1)
+  }
+
+  const handleProviderFilterChange = (value: string) => {
+    setProviderFilter(value)
+    setPage(1)
+  }
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -308,7 +331,7 @@ export function StockPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-6">
-        <Select value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}>
+        <Select value={stateFilter} onChange={(event) => handleStateFilterChange(event.target.value)}>
           <option value="">Estado (todos)</option>
           {stateOptions.map((option) => (
             <option key={option.value} value={option.value}>
@@ -316,8 +339,8 @@ export function StockPage() {
             </option>
           ))}
         </Select>
-        <Input placeholder="Modelo" value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} />
-        <Select value={storageFilter} onChange={(event) => setStorageFilter(event.target.value)}>
+        <Input placeholder="Modelo" value={modelFilter} onChange={(event) => handleModelFilterChange(event.target.value)} />
+        <Select value={storageFilter} onChange={(event) => handleStorageFilterChange(event.target.value)}>
           <option value="">GB</option>
           {storageOptions.map((gb) => (
             <option key={gb} value={gb}>
@@ -331,14 +354,14 @@ export function StockPage() {
           max={100}
           placeholder="Batería mínima"
           value={batteryFilter}
-          onChange={(event) => setBatteryFilter(event.target.value)}
+          onChange={(event) => handleBatteryFilterChange(event.target.value)}
         />
-        <Select value={promoFilter} onChange={(event) => setPromoFilter(event.target.value as 'all' | 'promo' | 'no_promo')}>
+        <Select value={promoFilter} onChange={(event) => handlePromoFilterChange(event.target.value as 'all' | 'promo' | 'no_promo')}>
           <option value="all">Promo: todos</option>
           <option value="promo">Solo promo</option>
           <option value="no_promo">Sin promo</option>
         </Select>
-        <Input placeholder="Proveedor" value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} />
+        <Input placeholder="Proveedor" value={providerFilter} onChange={(event) => handleProviderFilterChange(event.target.value)} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -415,7 +438,7 @@ export function StockPage() {
                         size="sm"
                         variant="ghost"
                         className="w-full justify-start md:justify-center"
-                        onClick={() => promoMutation.mutate({ id: item.id, isPromo: !Boolean(item.is_promo) })}
+                        onClick={() => promoMutation.mutate({ id: item.id, isPromo: !item.is_promo })}
                       >
                         {item.is_promo ? 'Quitar promo' : 'Marcar promo'}
                       </Button>
@@ -448,16 +471,16 @@ export function StockPage() {
             Mostrando {pageStart + 1}-{pageEnd} de {sortedStock.length} equipos
           </p>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+            <Button size="sm" variant="secondary" disabled={safePage <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
               Anterior
             </Button>
             <span className="text-xs font-semibold text-[#334155]">
-              Página {page} de {totalPages}
+              Página {safePage} de {totalPages}
             </span>
             <Button
               size="sm"
               variant="secondary"
-              disabled={page >= totalPages}
+              disabled={safePage >= totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
               Siguiente
@@ -576,7 +599,7 @@ export function StockPage() {
             <Input
               type="number"
               min={0}
-              value={reserveForm.watch('reserve_amount_ars') == null ? '' : String(reserveForm.watch('reserve_amount_ars'))}
+              value={reserveAmountArs == null ? '' : String(reserveAmountArs)}
               onChange={(event) => {
                 reserveForm.setValue('reserve_amount_ars', asPositiveNumber(event.target.value), {
                   shouldValidate: true,

@@ -120,14 +120,13 @@ export function TradeInsPage() {
     },
   })
 
-  const rows = tradeInsQuery.data ?? []
-
   const grouped = useMemo(() => {
+    const rows = tradeInsQuery.data ?? []
     return rows.map((row) => ({
       ...row,
       statusLabel: statusLabels[row.status] ?? row.status,
     }))
-  }, [rows])
+  }, [tradeInsQuery.data])
 
   const calculateSuggested = () => {
     const model = form.getValues('model')

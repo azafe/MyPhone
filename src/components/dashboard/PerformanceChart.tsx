@@ -5,8 +5,8 @@ import { SegmentedControl } from './SegmentedControl'
 import { formatARS, formatPercent, formatUnits, formatUSD } from './formatters'
 import { computeComparison } from './comparison'
 
-export type PerformanceMetric = 'usd' | 'units'
-export type PerformanceRange = '7d' | '30d' | '12m'
+type PerformanceMetric = 'usd' | 'units'
+type PerformanceRange = '7d' | '30d' | '12m'
 
 type Bucket = {
   key: string
@@ -256,9 +256,4 @@ export function PerformanceChart({ sales }: PerformanceChartProps) {
       <div className="mt-3 text-[11px] text-[#94A3B8]">Actualizado {updatedAt}</div>
     </div>
   )
-}
-
-export const performanceHelpers = {
-  buildBuckets,
-  computeTotal,
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { fetchSales, fetchSellers } from '../services/sales'
@@ -85,23 +85,14 @@ export function SalesPage() {
       }),
   })
 
-  const sales = salesQuery.data ?? []
-
   const sortedSales = useMemo(() => {
-    return [...sales].sort((a, b) => resolveSaleDateMillis(b) - resolveSaleDateMillis(a))
-  }, [sales])
-
-  useEffect(() => {
-    setPage(1)
-  }, [from, to, sellerId, query])
+    const rows = salesQuery.data ?? []
+    return [...rows].sort((a, b) => resolveSaleDateMillis(b) - resolveSaleDateMillis(a))
+  }, [salesQuery.data])
 
   const totalPages = Math.max(1, Math.ceil(sortedSales.length / PAGE_SIZE))
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
-
-  const pageStart = (page - 1) * PAGE_SIZE
+  const safePage = Math.min(page, totalPages)
+  const pageStart = (safePage - 1) * PAGE_SIZE
   const pageEnd = Math.min(pageStart + PAGE_SIZE, sortedSales.length)
 
   const paginatedSales = useMemo(
@@ -119,6 +110,26 @@ export function SalesPage() {
     }
   }, [sortedSales])
 
+  const handleFromChange = (value: string) => {
+    setFrom(value)
+    setPage(1)
+  }
+
+  const handleToChange = (value: string) => {
+    setTo(value)
+    setPage(1)
+  }
+
+  const handleSellerChange = (value: string) => {
+    setSellerId(value)
+    setPage(1)
+  }
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value)
+    setPage(1)
+  }
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -130,9 +141,9 @@ export function SalesPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-        <Select value={sellerId} onChange={(event) => setSellerId(event.target.value)}>
+        <Input type="date" value={from} onChange={(event) => handleFromChange(event.target.value)} />
+        <Input type="date" value={to} onChange={(event) => handleToChange(event.target.value)} />
+        <Select value={sellerId} onChange={(event) => handleSellerChange(event.target.value)}>
           <option value="">Todos los vendedores</option>
           {(sellersQuery.data ?? []).map((seller) => (
             <option key={seller.id} value={seller.id}>
@@ -143,7 +154,7 @@ export function SalesPage() {
         <Input
           placeholder="Buscar cliente, DNI, IMEI"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => handleQueryChange(event.target.value)}
         />
       </div>
 
@@ -235,16 +246,16 @@ export function SalesPage() {
             Mostrando {pageStart + 1}-{pageEnd} de {sortedSales.length} ventas
           </p>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" disabled={page <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+            <Button size="sm" variant="secondary" disabled={safePage <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
               Anterior
             </Button>
             <span className="text-xs font-semibold text-[#334155]">
-              Página {page} de {totalPages}
+              Página {safePage} de {totalPages}
             </span>
             <Button
               size="sm"
               variant="secondary"
-              disabled={page >= totalPages}
+              disabled={safePage >= totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
               Siguiente

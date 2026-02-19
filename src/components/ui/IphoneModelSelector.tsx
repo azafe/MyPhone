@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { cn } from '../../lib/utils'
 
 type Group = { label: string; options: string[] }
@@ -29,10 +29,6 @@ export function IphoneModelSelector({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
-  useEffect(() => {
-    if (!open) setQuery(value)
-  }, [value, open])
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return GROUPS
@@ -44,6 +40,7 @@ export function IphoneModelSelector({
 
   const handleSelect = (option: string) => {
     onChange(option)
+    setQuery(option)
     setOpen(false)
   }
 
@@ -55,7 +52,10 @@ export function IphoneModelSelector({
           setQuery(event.target.value)
           setOpen(true)
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setQuery(value)
+          setOpen(true)
+        }}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         disabled={disabled}
         placeholder="Buscar modelo iPhone"

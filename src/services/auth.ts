@@ -257,11 +257,7 @@ export async function loginWithPassword(payload: { email: string; password: stri
   } catch (backendError) {
     // Railway backend can have all /api routes protected and return missing bearer for /api/auth/login.
     if (isMissingBearerError(backendError)) {
-      try {
-        return await loginWithSupabase(payload)
-      } catch (supabaseError) {
-        throw supabaseError
-      }
+      return loginWithSupabase(payload)
     }
 
     if (hasSupabaseEnv) {

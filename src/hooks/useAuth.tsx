@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AUTH_TOKEN_STORAGE_KEY } from '../lib/apiClient'
 import { fetchAuthMe, loginWithPassword } from '../services/auth'
@@ -71,26 +72,26 @@ function shouldDropSession(error: unknown) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [loading, setLoading] = useState(true)
-  const [token, setToken] = useState<string | null>(null)
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const stored = useMemo(() => readStoredAuth(), [])
+  const [loading, setLoading] = useState(Boolean(stored.token))
+  const [token, setToken] = useState<string | null>(stored.token)
+  const [user, setUser] = useState<AuthUser | null>(stored.user)
 
   useEffect(() => {
-    const stored = readStoredAuth()
-    setToken(stored.token)
-    setUser(stored.user)
-
-    if (!stored.token) {
-      setLoading(false)
+    if (!token) {
       return
     }
 
+    let cancelled = false
+
     fetchAuthMe()
       .then((me) => {
+        if (cancelled) return
         setUser(me)
         localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(me))
       })
       .catch((error) => {
+        if (cancelled) return
         if (shouldDropSession(error)) {
           clearStoredAuth()
           setToken(null)
@@ -101,8 +102,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Keep token if /auth/me is unavailable but credentials are valid for API usage.
         setUser(stored.user)
       })
-      .finally(() => setLoading(false))
-  }, [])
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [stored.user, token])
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -118,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error('Login sin token válido')
         }
 
+        setLoading(true)
         // Persist token first so any subsequent request (e.g. /auth/me) already sends Bearer.
         setToken(nextToken)
 
@@ -148,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearStoredAuth()
         setToken(null)
         setUser(null)
+        setLoading(false)
       },
     }),
     [loading, token, user],
