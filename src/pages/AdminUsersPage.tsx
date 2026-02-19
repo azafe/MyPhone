@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import toast from 'react-hot-toast'
 import { createUser, fetchUsers, updateUserRole } from '../services/users'
+import { useAuth } from '../hooks/useAuth'
 import { Table } from '../components/ui/Table'
 import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
@@ -23,6 +24,7 @@ type FormValues = z.infer<typeof schema>
 
 export function AdminUsersPage() {
   const queryClient = useQueryClient()
+  const { profile } = useAuth()
   const { data = [] } = useQuery({ queryKey: ['users'], queryFn: fetchUsers })
   const [updating, setUpdating] = useState<string | null>(null)
 
@@ -45,6 +47,11 @@ export function AdminUsersPage() {
     onSuccess: () => {
       toast.success('Rol actualizado')
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      setUpdating(null)
+    },
+    onError: (error) => {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo actualizar rol')
       setUpdating(null)
     },
   })
@@ -111,30 +118,46 @@ export function AdminUsersPage() {
       </Card>
 
       <Table headers={['Usuario', 'Rol', 'Acciones']}>
-        {data.map((user) => (
-          <tr key={user.id}>
-            <td className="px-4 py-3">
-              <div className="text-sm font-medium text-[#0F172A]">{user.full_name ?? user.email}</div>
-              <div className="text-xs text-[#5B677A]">{user.email}</div>
-            </td>
-            <td className="px-4 py-3 text-sm uppercase tracking-[0.2em] text-[#5B677A]">{user.role}</td>
-            <td className="px-4 py-3">
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setUpdating(user.id)
-                    updateMutation.mutate({ id: user.id, role: user.role === 'admin' ? 'seller' : 'admin' })
-                  }}
-                  disabled={updating === user.id}
-                >
-                  {user.role === 'admin' ? 'Hacer seller' : 'Hacer admin'}
-                </Button>
-              </div>
-            </td>
-          </tr>
-        ))}
+        {data.map((user) => {
+          const role = String(user.role ?? '').toLowerCase()
+          const isOwner = role === 'owner'
+          const isSelf = user.id === profile?.id
+          const nextRole: 'seller' | 'admin' | null = role === 'admin' ? 'seller' : role === 'seller' ? 'admin' : null
+          const isSelfDowngrade = isSelf && role === 'admin' && nextRole === 'seller'
+          const isProtected = isOwner || isSelfDowngrade || !nextRole
+
+          return (
+            <tr key={user.id}>
+              <td className="px-4 py-3">
+                <div className="text-sm font-medium text-[#0F172A]">{user.full_name ?? user.email}</div>
+                <div className="text-xs text-[#5B677A]">{user.email}</div>
+              </td>
+              <td className="px-4 py-3 text-sm uppercase tracking-[0.2em] text-[#5B677A]">{user.role}</td>
+              <td className="px-4 py-3">
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      if (!nextRole || isProtected) return
+                      setUpdating(user.id)
+                      updateMutation.mutate({ id: user.id, role: nextRole })
+                    }}
+                    disabled={updating === user.id || isProtected}
+                  >
+                    {isOwner
+                      ? 'Owner protegido'
+                      : isSelfDowngrade
+                        ? 'Tu cuenta (protegida)'
+                        : role === 'admin'
+                          ? 'Hacer seller'
+                          : 'Hacer admin'}
+                  </Button>
+                </div>
+              </td>
+            </tr>
+          )
+        })}
       </Table>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchFinanceSummary } from '../services/finance'
 import type { FinanceSummary } from '../types'
@@ -69,24 +69,31 @@ export function FinancePage() {
     setTo(next.to)
   }
 
-  const { data } = useQuery({
+  const financeQuery = useQuery({
     queryKey: ['finance', from, to],
     queryFn: () => fetchFinanceSummary(from, to),
   })
 
-  const summary = (data ?? {}) as Partial<FinanceSummary>
+  const summary = (financeQuery.data ?? null) as Partial<FinanceSummary> | null
 
-  const mixRows = useMemo(
-    () => (Array.isArray(summary.payment_mix) ? summary.payment_mix : []),
-    [summary.payment_mix],
-  )
+  const mixRows = Array.isArray(summary?.payment_mix) ? summary.payment_mix : []
 
-  const totalSales = Number(summary.sales_total ?? summary.sales_month ?? 0)
-  const salesCount = Number(summary.sales_count ?? summary.total_sales_count ?? summary.orders_count ?? 0)
-  const estimatedMargin = Number(summary.margin_total ?? summary.margin_month ?? 0)
-  const avgTicket = Number(summary.ticket_avg ?? summary.avg_ticket ?? 0) || (salesCount > 0 ? totalSales / salesCount : 0)
+  const totalSales = summary ? Number(summary.sales_total ?? summary.sales_month ?? 0) : null
+  const salesCount = summary ? Number(summary.sales_count ?? summary.total_sales_count ?? summary.orders_count ?? 0) : null
+  const estimatedMargin = summary ? Number(summary.margin_total ?? summary.margin_month ?? 0) : null
+  const avgTicket =
+    summary && salesCount != null && totalSales != null
+      ? Number(summary.ticket_avg ?? summary.avg_ticket ?? 0) || (salesCount > 0 ? totalSales / salesCount : 0)
+      : null
+
+  const formatArs = (value: number | null) => (value == null ? '—' : `$ ${value.toLocaleString('es-AR')}`)
+  const formatCount = (value: number | null) => (value == null ? '—' : value.toLocaleString('es-AR'))
 
   const handleExportCsv = () => {
+    if (!summary || totalSales == null || salesCount == null || estimatedMargin == null || avgTicket == null) {
+      return
+    }
+
     const rows: string[][] = [
       ['Métrica', 'Valor'],
       ['Desde', from],
@@ -110,10 +117,20 @@ export function FinancePage() {
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Finanzas</h2>
           <p className="text-sm text-[#5B677A]">Resumen ejecutivo por período.</p>
         </div>
-        <Button variant="secondary" onClick={handleExportCsv}>
+        <Button
+          variant="secondary"
+          onClick={handleExportCsv}
+          disabled={!summary || financeQuery.isLoading || Boolean(financeQuery.error)}
+        >
           Exportar CSV
         </Button>
       </div>
+
+      {financeQuery.error ? (
+        <div className="rounded-xl border border-[rgba(185,28,28,0.2)] bg-[rgba(185,28,28,0.08)] px-4 py-3 text-sm text-[#B91C1C]">
+          No se pudieron cargar métricas: {(financeQuery.error as Error).message}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-3">
         <div>
@@ -135,17 +152,23 @@ export function FinancePage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Ventas totales" value={`$ ${totalSales.toLocaleString('es-AR')}`} />
-        <StatCard label="Cantidad de ventas" value={salesCount.toLocaleString('es-AR')} />
-        <StatCard label="Margen estimado" value={`$ ${estimatedMargin.toLocaleString('es-AR')}`} />
-        <StatCard label="Ticket promedio" value={`$ ${Math.round(avgTicket).toLocaleString('es-AR')}`} />
+        <StatCard label="Ventas totales" value={formatArs(totalSales)} />
+        <StatCard label="Cantidad de ventas" value={formatCount(salesCount)} />
+        <StatCard label="Margen estimado" value={formatArs(estimatedMargin)} />
+        <StatCard label="Ticket promedio" value={avgTicket == null ? '—' : `$ ${Math.round(avgTicket).toLocaleString('es-AR')}`} />
       </div>
 
       <Card className="p-5">
         <h3 className="text-lg font-semibold text-[#0F172A]">Mix de pagos</h3>
         <div className="mt-4">
           <Table headers={['Método', 'Total']}>
-            {mixRows.length === 0 ? (
+            {financeQuery.isLoading ? (
+              <tr>
+                <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={2}>
+                  Cargando métricas...
+                </td>
+              </tr>
+            ) : mixRows.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-sm text-[#5B677A]" colSpan={2}>
                   Sin datos para el período.
