@@ -5,7 +5,7 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { createStockItem, fetchStock, reserveStockItem, setStockPromo, setStockState } from '../services/stock'
+import { createStockItem, fetchStockPage, reserveStockItem, setStockPromo, setStockState } from '../services/stock'
 import type { StockItem, StockState } from '../types'
 import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
@@ -97,6 +97,7 @@ const reserveSchema = z.object({
 })
 
 const PAGE_SIZE = 40
+const EMPTY_STOCK_ITEMS: StockItem[] = []
 
 export function StockPage() {
   const navigate = useNavigate()
@@ -113,21 +114,32 @@ export function StockPage() {
   const [reserveTarget, setReserveTarget] = useState<StockItem | null>(null)
 
   const stockQuery = useQuery({
-    queryKey: ['stock', stateFilter, modelFilter, storageFilter, batteryFilter, promoFilter, providerFilter],
+    queryKey: ['stock', stateFilter, modelFilter, storageFilter, batteryFilter, promoFilter, providerFilter, page, PAGE_SIZE],
     queryFn: () =>
-      fetchStock({
+      fetchStockPage({
         state: stateFilter || undefined,
         model: modelFilter || undefined,
         storage_gb: storageFilter ? Number(storageFilter) : undefined,
         battery_min: batteryFilter ? Number(batteryFilter) : undefined,
         promo: promoFilter === 'all' ? undefined : promoFilter === 'promo',
         provider: providerFilter || undefined,
+        page,
+        page_size: PAGE_SIZE,
+        sort_by: 'received_at',
+        sort_dir: 'desc',
       }),
   })
 
-  const stockAfterBaseFilters = useMemo(() => {
-    const rows = stockQuery.data ?? []
-    return rows.filter((item) => {
+  const fetchedStock = stockQuery.data?.items ?? EMPTY_STOCK_ITEMS
+  const usingServerPagination = Boolean(stockQuery.data?.serverPagination)
+
+  const processedStock = useMemo(() => {
+    if (usingServerPagination) {
+      return fetchedStock
+    }
+
+    return fetchedStock
+      .filter((item) => {
       if (modelFilter && !String(item.model ?? '').toLowerCase().includes(modelFilter.toLowerCase())) return false
       if (providerFilter && !String(item.provider_name ?? '').toLowerCase().includes(providerFilter.toLowerCase())) return false
       if (storageFilter && Number(item.storage_gb ?? 0) !== Number(storageFilter)) return false
@@ -136,30 +148,30 @@ export function StockPage() {
       if (promoFilter === 'no_promo' && item.is_promo) return false
       return true
     })
-  }, [batteryFilter, modelFilter, promoFilter, providerFilter, stockQuery.data, storageFilter])
+      .sort((a, b) => {
+        const aDate = new Date(a.received_at ?? a.created_at ?? 0).getTime()
+        const bDate = new Date(b.received_at ?? b.created_at ?? 0).getTime()
+        return bDate - aDate
+      })
+  }, [batteryFilter, fetchedStock, modelFilter, promoFilter, providerFilter, storageFilter, usingServerPagination])
 
-  const filteredStock = useMemo(() => {
-    if (!stateFilter) return stockAfterBaseFilters
-    return stockAfterBaseFilters.filter((item) => resolveState(item) === stateFilter)
-  }, [stateFilter, stockAfterBaseFilters])
-
-  const sortedStock = useMemo(() => {
-    return [...filteredStock].sort((a, b) => {
-      const aDate = new Date(a.received_at ?? a.created_at ?? 0).getTime()
-      const bDate = new Date(b.received_at ?? b.created_at ?? 0).getTime()
-      return bDate - aDate
-    })
-  }, [filteredStock])
-
-  const totalPages = Math.max(1, Math.ceil(sortedStock.length / PAGE_SIZE))
+  const totalCount = usingServerPagination
+    ? Number(stockQuery.data?.total ?? fetchedStock.length)
+    : processedStock.length
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
-  const pageStart = (safePage - 1) * PAGE_SIZE
-  const pageEnd = Math.min(pageStart + PAGE_SIZE, sortedStock.length)
+  const currentPage = usingServerPagination ? page : safePage
 
   const paginatedStock = useMemo(
-    () => sortedStock.slice(pageStart, pageStart + PAGE_SIZE),
-    [pageStart, sortedStock],
+    () => {
+      if (usingServerPagination) return processedStock
+      const pageOffset = (safePage - 1) * PAGE_SIZE
+      return processedStock.slice(pageOffset, pageOffset + PAGE_SIZE)
+    },
+    [processedStock, safePage, usingServerPagination],
   )
+  const pageStart = totalCount === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
+  const pageEnd = totalCount === 0 ? 0 : Math.min((currentPage - 1) * PAGE_SIZE + paginatedStock.length, totalCount)
 
   const newForm = useForm({
     resolver: zodResolver(createSchema),
@@ -251,7 +263,7 @@ export function StockPage() {
 
   const handleCreate = (values: unknown) => {
     const parsed = createSchema.parse(values)
-    const rows = stockQuery.data ?? []
+    const rows = fetchedStock
     const duplicatedImei = rows.some(
       (item) => String(item.imei ?? '').trim() !== '' && String(item.imei).trim() === parsed.imei.trim(),
     )
@@ -366,7 +378,7 @@ export function StockPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">
-          {filteredStock.length} equipos
+          {totalCount} equipos
         </p>
         <p className="text-xs text-[#64748B]">Lista compacta (rápida para alto volumen)</p>
       </div>
@@ -379,7 +391,7 @@ export function StockPage() {
         <div className="rounded-2xl border border-[#E6EBF2] bg-white px-4 py-6 text-sm text-[#5B677A]">
           Cargando stock...
         </div>
-      ) : filteredStock.length === 0 ? (
+      ) : totalCount === 0 ? (
         <div className="rounded-2xl border border-[#E6EBF2] bg-white px-4 py-6 text-sm text-[#5B677A]">
           Sin registros para los filtros actuales.
         </div>
@@ -465,22 +477,22 @@ export function StockPage() {
         </div>
       )}
 
-      {!stockQuery.error && !stockQuery.isLoading && filteredStock.length > 0 ? (
+      {!stockQuery.error && !stockQuery.isLoading && totalCount > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E6EBF2] bg-white px-3 py-2">
           <p className="text-xs text-[#475569]">
-            Mostrando {pageStart + 1}-{pageEnd} de {sortedStock.length} equipos
+            Mostrando {pageStart}-{pageEnd} de {totalCount} equipos
           </p>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" disabled={safePage <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+            <Button size="sm" variant="secondary" disabled={currentPage <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
               Anterior
             </Button>
             <span className="text-xs font-semibold text-[#334155]">
-              Página {safePage} de {totalPages}
+              Página {currentPage} de {totalPages}
             </span>
             <Button
               size="sm"
               variant="secondary"
-              disabled={safePage >= totalPages}
+              disabled={currentPage >= totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
               Siguiente

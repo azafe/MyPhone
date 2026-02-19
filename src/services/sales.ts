@@ -11,6 +11,20 @@ export type SalesFilters = {
   to?: string
   seller_id?: string
   seller?: string
+  page?: number
+  page_size?: number
+  sort_by?: string
+  sort_dir?: 'asc' | 'desc'
+}
+
+export type SalesPageResult = {
+  items: Sale[]
+  total: number
+  page: number
+  page_size: number
+  serverPagination: boolean
+  total_ars: number | null
+  pending_ars: number | null
 }
 
 export type CreateSalePayload = {
@@ -47,6 +61,79 @@ export type SellerOption = {
   id: string
   full_name: string
   role?: string | null
+}
+
+function parseNumber(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parsePositiveInt(value: unknown) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function pickNumber(record: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!record) return null
+  for (const key of keys) {
+    const parsed = parseNumber(record[key])
+    if (parsed != null) return parsed
+  }
+  return null
+}
+
+function extractPaginationMeta(response: unknown) {
+  const root = asRecord(response)
+  const nested = asRecord(root?.data)
+  const rootPagination = asRecord(root?.pagination)
+  const nestedPagination = asRecord(nested?.pagination)
+
+  const total =
+    pickNumber(root, ['total', 'total_count', 'count']) ??
+    pickNumber(nested, ['total', 'total_count', 'count']) ??
+    pickNumber(rootPagination, ['total', 'total_count', 'count']) ??
+    pickNumber(nestedPagination, ['total', 'total_count', 'count'])
+
+  const page =
+    parsePositiveInt(root?.page) ??
+    parsePositiveInt(root?.current_page) ??
+    parsePositiveInt(nested?.page) ??
+    parsePositiveInt(nested?.current_page) ??
+    parsePositiveInt(rootPagination?.page) ??
+    parsePositiveInt(rootPagination?.current_page) ??
+    parsePositiveInt(nestedPagination?.page) ??
+    parsePositiveInt(nestedPagination?.current_page)
+
+  const pageSize =
+    parsePositiveInt(root?.page_size) ??
+    parsePositiveInt(root?.per_page) ??
+    parsePositiveInt(nested?.page_size) ??
+    parsePositiveInt(nested?.per_page) ??
+    parsePositiveInt(rootPagination?.page_size) ??
+    parsePositiveInt(rootPagination?.per_page) ??
+    parsePositiveInt(nestedPagination?.page_size) ??
+    parsePositiveInt(nestedPagination?.per_page)
+
+  const totalArs =
+    pickNumber(root, ['total_ars', 'sales_total', 'sales_total_ars']) ??
+    pickNumber(nested, ['total_ars', 'sales_total', 'sales_total_ars'])
+  const pendingArs =
+    pickNumber(root, ['pending_ars', 'balance_due_ars', 'total_pending_ars']) ??
+    pickNumber(nested, ['pending_ars', 'balance_due_ars', 'total_pending_ars'])
+
+  return {
+    total,
+    page,
+    pageSize,
+    totalArs,
+    pendingArs,
+    serverPagination: total != null || page != null || pageSize != null,
+  }
 }
 
 function normalizeSale(raw: Record<string, unknown>): Sale {
@@ -117,6 +204,36 @@ export async function fetchSales(filters: SalesFilters = {}) {
 
   const response = await requestFirstAvailable<unknown>(SALES_ENDPOINTS.map((endpoint) => `${endpoint}${query}`))
   return asArray<Record<string, unknown>>(response).map(normalizeSale)
+}
+
+export async function fetchSalesPage(filters: SalesFilters = {}): Promise<SalesPageResult> {
+  const requestedPage = filters.page && filters.page > 0 ? Math.floor(filters.page) : 1
+  const requestedPageSize = filters.page_size && filters.page_size > 0 ? Math.floor(filters.page_size) : 30
+  const query = toQueryString({
+    query: filters.query,
+    from: filters.from,
+    to: filters.to,
+    seller_id: filters.seller_id,
+    seller: filters.seller,
+    page: requestedPage,
+    page_size: requestedPageSize,
+    sort_by: filters.sort_by,
+    sort_dir: filters.sort_dir,
+  })
+
+  const response = await requestFirstAvailable<unknown>(SALES_ENDPOINTS.map((endpoint) => `${endpoint}${query}`))
+  const items = asArray<Record<string, unknown>>(response).map(normalizeSale)
+  const meta = extractPaginationMeta(response)
+
+  return {
+    items,
+    total: meta.total != null ? Math.max(0, Math.floor(meta.total)) : items.length,
+    page: meta.page ?? requestedPage,
+    page_size: meta.pageSize ?? requestedPageSize,
+    serverPagination: meta.serverPagination,
+    total_ars: meta.totalArs,
+    pending_ars: meta.pendingArs,
+  }
 }
 
 export async function createSale(payload: CreateSalePayload) {

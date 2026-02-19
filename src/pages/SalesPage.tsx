@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { fetchSales, fetchSellers } from '../services/sales'
+import { fetchSalesPage, fetchSellers } from '../services/sales'
 import type { Sale } from '../types'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Select } from '../components/ui/Select'
 
 const PAGE_SIZE = 30
+const EMPTY_SALES: Sale[] = []
 
 function formatDate(value?: string | null) {
   if (!value) return '—'
@@ -75,40 +76,58 @@ export function SalesPage() {
   })
 
   const salesQuery = useQuery({
-    queryKey: ['sales', from, to, sellerId, query],
+    queryKey: ['sales', from, to, sellerId, query, page, PAGE_SIZE],
     queryFn: () =>
-      fetchSales({
+      fetchSalesPage({
         from: from || undefined,
         to: to || undefined,
         seller_id: sellerId || undefined,
         query: query || undefined,
+        page,
+        page_size: PAGE_SIZE,
+        sort_by: 'sale_date',
+        sort_dir: 'desc',
       }),
   })
 
+  const fetchedSales = salesQuery.data?.items ?? EMPTY_SALES
+  const usingServerPagination = Boolean(salesQuery.data?.serverPagination)
+
   const sortedSales = useMemo(() => {
-    const rows = salesQuery.data ?? []
+    if (usingServerPagination) {
+      return fetchedSales
+    }
+
+    const rows = fetchedSales
     return [...rows].sort((a, b) => resolveSaleDateMillis(b) - resolveSaleDateMillis(a))
-  }, [salesQuery.data])
+  }, [fetchedSales, usingServerPagination])
 
-  const totalPages = Math.max(1, Math.ceil(sortedSales.length / PAGE_SIZE))
+  const totalCount = usingServerPagination ? Number(salesQuery.data?.total ?? fetchedSales.length) : sortedSales.length
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
-  const pageStart = (safePage - 1) * PAGE_SIZE
-  const pageEnd = Math.min(pageStart + PAGE_SIZE, sortedSales.length)
+  const currentPage = usingServerPagination ? page : safePage
 
-  const paginatedSales = useMemo(
-    () => sortedSales.slice(pageStart, pageStart + PAGE_SIZE),
-    [pageStart, sortedSales],
-  )
+  const paginatedSales = useMemo(() => {
+    if (usingServerPagination) return sortedSales
+    const pageOffset = (safePage - 1) * PAGE_SIZE
+    return sortedSales.slice(pageOffset, pageOffset + PAGE_SIZE)
+  }, [safePage, sortedSales, usingServerPagination])
+  const pageStart = totalCount === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
+  const pageEnd = totalCount === 0 ? 0 : Math.min((currentPage - 1) * PAGE_SIZE + paginatedSales.length, totalCount)
 
   const totals = useMemo(() => {
-    const totalArs = sortedSales.reduce((sum, sale) => sum + Number(sale.total_ars || 0), 0)
-    const pendingArs = sortedSales.reduce((sum, sale) => sum + Number(sale.balance_due_ars || 0), 0)
+    const fallbackTotalArs = paginatedSales.reduce((sum, sale) => sum + Number(sale.total_ars || 0), 0)
+    const fallbackPendingArs = paginatedSales.reduce((sum, sale) => sum + Number(sale.balance_due_ars || 0), 0)
+    const totalArs = usingServerPagination ? Number(salesQuery.data?.total_ars ?? fallbackTotalArs) : sortedSales.reduce((sum, sale) => sum + Number(sale.total_ars || 0), 0)
+    const pendingArs = usingServerPagination
+      ? Number(salesQuery.data?.pending_ars ?? fallbackPendingArs)
+      : sortedSales.reduce((sum, sale) => sum + Number(sale.balance_due_ars || 0), 0)
     return {
       totalArs,
       pendingArs,
-      count: sortedSales.length,
+      count: totalCount,
     }
-  }, [sortedSales])
+  }, [paginatedSales, salesQuery.data?.pending_ars, salesQuery.data?.total_ars, sortedSales, totalCount, usingServerPagination])
 
   const handleFromChange = (value: string) => {
     setFrom(value)
@@ -181,7 +200,7 @@ export function SalesPage() {
         <div className="rounded-2xl border border-[#E6EBF2] bg-white px-4 py-6 text-sm text-[#5B677A]">
           Cargando ventas...
         </div>
-      ) : sortedSales.length === 0 ? (
+      ) : totalCount === 0 ? (
         <div className="rounded-2xl border border-[#E6EBF2] bg-white px-4 py-6 text-sm text-[#5B677A]">
           No hay ventas para los filtros seleccionados.
         </div>
@@ -240,22 +259,22 @@ export function SalesPage() {
         </div>
       )}
 
-      {!salesQuery.error && !salesQuery.isLoading && sortedSales.length > 0 ? (
+      {!salesQuery.error && !salesQuery.isLoading && totalCount > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#E6EBF2] bg-white px-3 py-2">
           <p className="text-xs text-[#475569]">
-            Mostrando {pageStart + 1}-{pageEnd} de {sortedSales.length} ventas
+            Mostrando {pageStart}-{pageEnd} de {totalCount} ventas
           </p>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" disabled={safePage <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
+            <Button size="sm" variant="secondary" disabled={currentPage <= 1} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>
               Anterior
             </Button>
             <span className="text-xs font-semibold text-[#334155]">
-              Página {safePage} de {totalPages}
+              Página {currentPage} de {totalPages}
             </span>
             <Button
               size="sm"
               variant="secondary"
-              disabled={safePage >= totalPages}
+              disabled={currentPage >= totalPages}
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
             >
               Siguiente

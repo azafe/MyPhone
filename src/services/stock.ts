@@ -21,13 +21,84 @@ type StockFilters = {
   provider?: string
   query?: string
   condition?: string
+  page?: number
+  page_size?: number
+  sort_by?: string
+  sort_dir?: 'asc' | 'desc'
 }
 
 const LEGACY_STOCK_CATEGORIES = new Set(['outlet', 'used_premium', 'new'])
 
+export type StockPageResult = {
+  items: StockItem[]
+  total: number
+  page: number
+  page_size: number
+  serverPagination: boolean
+}
+
 function parseNumber(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function parsePositiveInt(value: unknown) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function pickNumber(record: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!record) return null
+  for (const key of keys) {
+    const parsed = parseNumber(record[key])
+    if (parsed != null) return parsed
+  }
+  return null
+}
+
+function extractPaginationMeta(response: unknown) {
+  const root = asRecord(response)
+  const nested = asRecord(root?.data)
+  const rootPagination = asRecord(root?.pagination)
+  const nestedPagination = asRecord(nested?.pagination)
+
+  const total =
+    pickNumber(root, ['total', 'total_count', 'count']) ??
+    pickNumber(nested, ['total', 'total_count', 'count']) ??
+    pickNumber(rootPagination, ['total', 'total_count', 'count']) ??
+    pickNumber(nestedPagination, ['total', 'total_count', 'count'])
+
+  const page =
+    parsePositiveInt(root?.page) ??
+    parsePositiveInt(root?.current_page) ??
+    parsePositiveInt(nested?.page) ??
+    parsePositiveInt(nested?.current_page) ??
+    parsePositiveInt(rootPagination?.page) ??
+    parsePositiveInt(rootPagination?.current_page) ??
+    parsePositiveInt(nestedPagination?.page) ??
+    parsePositiveInt(nestedPagination?.current_page)
+
+  const pageSize =
+    parsePositiveInt(root?.page_size) ??
+    parsePositiveInt(root?.per_page) ??
+    parsePositiveInt(nested?.page_size) ??
+    parsePositiveInt(nested?.per_page) ??
+    parsePositiveInt(rootPagination?.page_size) ??
+    parsePositiveInt(rootPagination?.per_page) ??
+    parsePositiveInt(nestedPagination?.page_size) ??
+    parsePositiveInt(nestedPagination?.per_page)
+
+  return {
+    total,
+    page,
+    pageSize,
+    serverPagination: total != null || page != null || pageSize != null,
+  }
 }
 
 function diffDays(fromIso?: string | null) {
@@ -177,6 +248,19 @@ function applyStateFilter(items: StockItem[], state?: string) {
   return items.filter((item) => item.state === state)
 }
 
+function normalizeStockPageResponse(response: unknown, requestedPage: number, requestedPageSize: number): StockPageResult {
+  const items = normalizeStockArray(response)
+  const meta = extractPaginationMeta(response)
+
+  return {
+    items,
+    total: meta.total != null ? Math.max(0, Math.floor(meta.total)) : items.length,
+    page: meta.page ?? requestedPage,
+    page_size: meta.pageSize ?? requestedPageSize,
+    serverPagination: meta.serverPagination,
+  }
+}
+
 function isRouteNotFoundError(error: unknown) {
   const err = error as Error & { code?: string }
   const code = String(err?.code ?? '').toLowerCase()
@@ -281,6 +365,46 @@ export async function fetchStock(filters: StockFilters = {}) {
   } catch (error) {
     if (isRouteNotFoundError(error) && hasSupabaseEnv) {
       return fetchStockFromSupabase(filters)
+    }
+    throw error
+  }
+}
+
+export async function fetchStockPage(filters: StockFilters = {}): Promise<StockPageResult> {
+  const requestedPage = filters.page && filters.page > 0 ? Math.floor(filters.page) : 1
+  const requestedPageSize = filters.page_size && filters.page_size > 0 ? Math.floor(filters.page_size) : 40
+  const mappedState = mapStateToLegacy(filters.state)
+  const query = toQueryString({
+    status: filters.status ?? mappedState.status,
+    statuses: filters.statuses?.join(','),
+    category: filters.category ?? mappedState.category,
+    model: filters.model,
+    storage_gb: filters.storage_gb,
+    battery_min: filters.battery_min,
+    battery_max: filters.battery_max,
+    promo: filters.promo,
+    provider: filters.provider,
+    query: filters.query,
+    condition: filters.condition,
+    page: requestedPage,
+    page_size: requestedPageSize,
+    sort_by: filters.sort_by,
+    sort_dir: filters.sort_dir,
+  })
+
+  try {
+    const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}${query}`))
+    return normalizeStockPageResponse(response, requestedPage, requestedPageSize)
+  } catch (error) {
+    if (isRouteNotFoundError(error) && hasSupabaseEnv) {
+      const items = await fetchStockFromSupabase(filters)
+      return {
+        items,
+        total: items.length,
+        page: requestedPage,
+        page_size: requestedPageSize,
+        serverPagination: false,
+      }
     }
     throw error
   }
