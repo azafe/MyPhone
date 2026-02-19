@@ -43,6 +43,15 @@ function pickString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
+function pickRole(value: unknown): AuthUser['role'] | null {
+  const role = pickString(value)?.toLowerCase()
+  if (!role) return null
+  if (role === 'owner' || role === 'admin' || role === 'seller' || role === 'user') {
+    return role
+  }
+  return null
+}
+
 function toAuthUser(payload: {
   id: string
   email: string
@@ -53,7 +62,7 @@ function toAuthUser(payload: {
     id: payload.id,
     email: payload.email,
     full_name: payload.full_name?.trim() || payload.email,
-    role: (payload.role as AuthUser['role']) ?? 'seller',
+    role: pickRole(payload.role) ?? 'seller',
   }
 }
 
@@ -141,7 +150,10 @@ async function loadSupabaseClient(): Promise<SupabaseClient | null> {
 }
 
 async function fetchSupabaseProfile(supabase: SupabaseClient, userId: string) {
-  const response = await supabase.from('profiles').select('id,email,full_name,role').eq('id', userId).maybeSingle()
+  const response = await supabase.from('profiles').select('id,full_name,role').eq('id', userId).maybeSingle()
+  if (response.error) {
+    return null
+  }
   return response.data
 }
 
@@ -180,6 +192,14 @@ async function loginWithSupabase(payload: { email: string; password: string }): 
 
   const profile = await fetchSupabaseProfile(supabase, id)
   const metadata = asObject(rawUser.user_metadata)
+  const resolvedRole = pickRole(profile?.role) ?? pickRole(metadata?.role)
+
+  if (!resolvedRole) {
+    return {
+      token,
+      user: null,
+    }
+  }
 
   return {
     token,
@@ -187,7 +207,7 @@ async function loginWithSupabase(payload: { email: string; password: string }): 
       id,
       email,
       full_name: pickString(profile?.full_name) ?? pickString(metadata?.full_name) ?? email,
-      role: pickString(profile?.role),
+      role: resolvedRole,
     }),
   }
 }
@@ -216,12 +236,17 @@ async function fetchSupabaseMe(): Promise<AuthUser | null> {
 
   const profile = await fetchSupabaseProfile(supabase, id)
   const metadata = asObject(rawUser.user_metadata)
+  const resolvedRole = pickRole(profile?.role) ?? pickRole(metadata?.role)
+
+  if (!resolvedRole) {
+    return null
+  }
 
   return toAuthUser({
     id,
     email,
     full_name: pickString(profile?.full_name) ?? pickString(metadata?.full_name) ?? email,
-    role: pickString(profile?.role),
+    role: resolvedRole,
   })
 }
 
