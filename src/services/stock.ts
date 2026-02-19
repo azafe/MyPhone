@@ -6,7 +6,7 @@ const STOCK_ENDPOINTS = ['/api/stock-items']
 const hasSupabaseEnv = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 type StockFilters = {
-  state?: string
+  state?: StockState | string
   status?: string
   category?: string
   statuses?: string[]
@@ -19,6 +19,8 @@ type StockFilters = {
   query?: string
   condition?: string
 }
+
+const LEGACY_STOCK_CATEGORIES = new Set(['outlet', 'used_premium', 'new'])
 
 function parseNumber(value: unknown) {
   const parsed = Number(value)
@@ -83,18 +85,31 @@ function sanitizeLegacyStatus(status?: unknown): StockItem['status'] | undefined
   return status as StockItem['status']
 }
 
-function toLegacySupabasePayload(payload: Partial<StockItem>): Partial<StockItem> {
+function sanitizeLegacyCategory(category?: unknown): string | undefined {
+  if (typeof category !== 'string') return undefined
+  return LEGACY_STOCK_CATEGORIES.has(category) ? category : undefined
+}
+
+function toLegacyPayload(payload: Partial<StockItem>): Partial<StockItem> {
   const legacyPayload: Partial<StockItem> = { ...payload }
   const mapped = mapStateToLegacy(legacyPayload.state)
+  const hasCanonicalState = legacyPayload.state != null
 
   delete legacyPayload.state
 
-  if (legacyPayload.status == null && mapped.status) {
+  if (hasCanonicalState) {
+    legacyPayload.status = mapped.status
+    legacyPayload.category = mapped.category
+    return legacyPayload
+  }
+
+  if (legacyPayload.status == null) {
     legacyPayload.status = mapped.status
   } else {
     legacyPayload.status = sanitizeLegacyStatus(legacyPayload.status)
   }
 
+  legacyPayload.category = sanitizeLegacyCategory(legacyPayload.category)
   if (!legacyPayload.category && mapped.category) {
     legacyPayload.category = mapped.category
   }
@@ -149,6 +164,16 @@ function normalizeStockArray(response: unknown): StockItem[] {
   return asArray<Record<string, unknown>>(response).map(normalizeStockItem)
 }
 
+function normalizeStockObject(response: unknown): StockItem {
+  const raw = asObject<Record<string, unknown>>(response)
+  return normalizeStockItem(raw)
+}
+
+function applyStateFilter(items: StockItem[], state?: string) {
+  if (!state) return items
+  return items.filter((item) => item.state === state)
+}
+
 function isRouteNotFoundError(error: unknown) {
   const err = error as Error & { code?: string }
   const code = String(err?.code ?? '').toLowerCase()
@@ -182,7 +207,7 @@ async function fetchStockFromSupabase(filters: StockFilters = {}) {
     throw new Error('Stock API no disponible y Supabase no configurado')
   }
 
-  let query: any = supabase.from('stock_items').select('*').order('created_at', { ascending: false })
+  let query = supabase.from('stock_items').select('*').order('created_at', { ascending: false })
 
   if (filters.status) query = query.eq('status', filters.status)
   if (filters.statuses?.length) query = query.in('status', filters.statuses)
@@ -204,17 +229,13 @@ async function fetchStockFromSupabase(filters: StockFilters = {}) {
   const { data, error } = await query
   if (error) throw error
 
-  let items = normalizeStockArray(data ?? [])
-  if (filters.state) {
-    items = items.filter((item) => item.state === filters.state)
-  }
-  return items
+  return applyStateFilter(normalizeStockArray(data ?? []), filters.state)
 }
 
 async function createStockItemFromSupabase(payload: Partial<StockItem>) {
   const supabase = await getSupabaseClient()
   if (!supabase) throw new Error('Supabase no configurado')
-  const { data, error } = await supabase.from('stock_items').insert(toLegacySupabasePayload(payload)).select('*').single()
+  const { data, error } = await supabase.from('stock_items').insert(toLegacyPayload(payload)).select('*').single()
   if (error) throw error
   return normalizeStockItem((data ?? {}) as Record<string, unknown>)
 }
@@ -222,7 +243,7 @@ async function createStockItemFromSupabase(payload: Partial<StockItem>) {
 async function updateStockItemFromSupabase(id: string, payload: Partial<StockItem>) {
   const supabase = await getSupabaseClient()
   if (!supabase) throw new Error('Supabase no configurado')
-  const { data, error } = await supabase.from('stock_items').update(toLegacySupabasePayload(payload)).eq('id', id).select('*').single()
+  const { data, error } = await supabase.from('stock_items').update(toLegacyPayload(payload)).eq('id', id).select('*').single()
   if (error) throw error
   return normalizeStockItem((data ?? {}) as Record<string, unknown>)
 }
@@ -236,11 +257,11 @@ async function deleteStockItemFromSupabase(id: string) {
 }
 
 export async function fetchStock(filters: StockFilters = {}) {
+  const mappedState = mapStateToLegacy(filters.state)
   const query = toQueryString({
-    state: filters.state,
-    status: filters.status,
+    status: filters.status ?? mappedState.status,
     statuses: filters.statuses?.join(','),
-    category: filters.category,
+    category: filters.category ?? mappedState.category,
     model: filters.model,
     storage_gb: filters.storage_gb,
     battery_min: filters.battery_min,
@@ -253,7 +274,7 @@ export async function fetchStock(filters: StockFilters = {}) {
 
   try {
     const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}${query}`))
-    return normalizeStockArray(response)
+    return applyStateFilter(normalizeStockArray(response), filters.state)
   } catch (error) {
     if (isRouteNotFoundError(error) && hasSupabaseEnv) {
       return fetchStockFromSupabase(filters)
@@ -263,12 +284,14 @@ export async function fetchStock(filters: StockFilters = {}) {
 }
 
 export async function createStockItem(payload: Partial<StockItem>) {
+  const wirePayload = toLegacyPayload(payload)
+
   try {
     const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS, {
       method: 'POST',
-      body: payload,
+      body: wirePayload,
     })
-    return asObject<StockItem>(response)
+    return normalizeStockObject(response)
   } catch (error) {
     if (isRouteNotFoundError(error) && hasSupabaseEnv) {
       return createStockItemFromSupabase(payload)
@@ -278,12 +301,14 @@ export async function createStockItem(payload: Partial<StockItem>) {
 }
 
 export async function updateStockItem(id: string, payload: Partial<StockItem>) {
+  const wirePayload = toLegacyPayload(payload)
+
   try {
     const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
       method: 'PATCH',
-      body: payload,
+      body: wirePayload,
     })
-    return asObject<StockItem>(response)
+    return normalizeStockObject(response)
   } catch (error) {
     if (isRouteNotFoundError(error) && hasSupabaseEnv) {
       return updateStockItemFromSupabase(id, payload)

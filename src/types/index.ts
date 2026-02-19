@@ -37,7 +37,7 @@ export type TradeStatus = 'pending' | 'valued' | 'added_to_stock' | 'sold' | 're
 
 export type StockItem = {
   id: string
-  state?: StockState | null
+  state: StockState
   status?: StockStatus | null
   category?: string | null
   brand?: string | null
