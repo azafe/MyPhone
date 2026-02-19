@@ -3,7 +3,10 @@ import { asArray, asObject, toQueryString } from './normalizers'
 import { requestFirstAvailable } from './request'
 
 const STOCK_ENDPOINTS = ['/api/stock-items']
-const hasSupabaseEnv = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
+const hasSupabaseEnv = Boolean(
+  String(import.meta.env.VITE_SUPABASE_URL ?? '').trim() &&
+    String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').trim(),
+)
 
 type StockFilters = {
   state?: StockState | string

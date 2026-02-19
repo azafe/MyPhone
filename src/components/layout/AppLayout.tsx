@@ -99,7 +99,7 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const { profile } = useAuth()
   const role = String(profile?.role ?? '').toLowerCase()
-  const isAdmin = role === 'admin'
+  const isAdmin = role === 'admin' || role === 'owner'
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems
   const bottomNavItems = isAdmin
     ? [...baseBottomNavItems.slice(0, 4), { to: '/finance', label: 'Finance', icon: 'chart' }]

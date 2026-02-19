@@ -102,7 +102,7 @@ const router = createBrowserRouter([
           { path: '/plan-canje', element: withSuspense(<PlanCanjePage />) },
           { path: '/calculator', element: withSuspense(<CalculatorPage />) },
           {
-            element: <RequireRole role="admin" />,
+            element: <RequireRole allowedRoles={['admin', 'owner']} />,
             children: [
               { path: '/finance', element: withSuspense(<FinancePage />) },
               { path: '/admin/users', element: withSuspense(<AdminUsersPage />) },

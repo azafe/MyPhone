@@ -29,7 +29,10 @@ type SupabaseClient = {
   }
 }
 
-const hasSupabaseEnv = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
+const hasSupabaseEnv = Boolean(
+  String(import.meta.env.VITE_SUPABASE_URL ?? '').trim() &&
+    String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').trim(),
+)
 
 function asObject(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null

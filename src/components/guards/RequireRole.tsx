@@ -2,8 +2,14 @@ import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import type { Role } from '../../types'
 
-export function RequireRole({ role }: { role: Role }) {
+type RequireRoleProps = {
+  role?: Role
+  allowedRoles?: Role[]
+}
+
+export function RequireRole({ role, allowedRoles }: RequireRoleProps) {
   const { loading, profile } = useAuth()
+  const roles = allowedRoles ?? (role ? [role] : [])
 
   if (loading) {
     return <div className="min-h-screen grid place-items-center">Cargando...</div>
@@ -13,7 +19,7 @@ export function RequireRole({ role }: { role: Role }) {
     return <Navigate to="/login" replace />
   }
 
-  if (profile.role !== role) {
+  if (roles.length > 0 && !roles.includes(profile.role)) {
     return <Navigate to="/dashboard" replace />
   }
 

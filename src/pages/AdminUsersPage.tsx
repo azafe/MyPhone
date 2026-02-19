@@ -51,6 +51,26 @@ export function AdminUsersPage() {
 
   const onSubmit = (values: FormValues) => createMutation.mutate(values)
 
+  const handleCopyPassword = async () => {
+    const password = form.getValues('password')?.trim()
+    if (!password) {
+      toast.error('Ingresá una contraseña temporal primero')
+      return
+    }
+
+    if (!navigator.clipboard) {
+      toast.error('Portapapeles no disponible en este navegador')
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(password)
+      toast.success('Contraseña copiada')
+    } catch {
+      toast.error('No se pudo copiar la contraseña')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -68,7 +88,12 @@ export function AdminUsersPage() {
             <Input {...form.register('email')} />
           </Field>
           <Field label="Password temporal">
-            <Input {...form.register('password')} />
+            <div className="flex items-center gap-2">
+              <Input type="password" autoComplete="new-password" className="flex-1" {...form.register('password')} />
+              <Button type="button" size="sm" variant="secondary" onClick={handleCopyPassword}>
+                Copiar
+              </Button>
+            </div>
           </Field>
           <Field label="Nombre completo">
             <Input {...form.register('full_name')} />
