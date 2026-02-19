@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import toast from 'react-hot-toast'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchStock, setStockState } from '../services/stock'
+import { fetchStock } from '../services/stock'
 import { createSale, fetchSellers, type CreateSalePayload } from '../services/sales'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -191,26 +191,22 @@ export function SalesNewPage() {
 
   const mutation = useMutation({
     mutationFn: createSale,
-    onSuccess: async (_, payload) => {
-      const stockToMarkSold = payload.items
-        .map((item) => item.stock_item_id)
-        .filter((itemId): itemId is string => Boolean(itemId))
-
-      if (stockToMarkSold.length > 0) {
-        await Promise.all(
-          stockToMarkSold.map((stockItemId) =>
-            setStockState(stockItemId, 'sold', { status: 'sold' }),
-          ),
-        )
-      }
-
+    onSuccess: () => {
       toast.success('Venta guardada')
       queryClient.invalidateQueries({ queryKey: ['sales'] })
       queryClient.invalidateQueries({ queryKey: ['stock'] })
       navigate('/sales')
     },
     onError: (error) => {
-      const err = error as Error
+      const err = error as Error & { code?: string }
+      const code = String(err.code ?? '').toLowerCase()
+
+      if (code === 'stock_conflict') {
+        queryClient.invalidateQueries({ queryKey: ['stock'] })
+        toast.error('El equipo ya no está disponible. Actualizá Stock e intentá nuevamente.')
+        return
+      }
+
       toast.error(err.message || 'No se pudo guardar la venta')
     },
   })
