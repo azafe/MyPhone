@@ -250,8 +250,12 @@ export function SalesNewPage() {
       navigate('/sales')
     },
     onError: (error) => {
-      const err = error as Error & { code?: string; details?: { fieldErrors?: Record<string, string[]> } }
+      const err = error as Error & { code?: string; details?: unknown }
       const code = String(err.code ?? '').toLowerCase()
+      const detailsText =
+        typeof err.details === 'string'
+          ? err.details.toLowerCase()
+          : JSON.stringify(err.details ?? '').toLowerCase()
 
       if (code === 'stock_conflict') {
         queryClient.invalidateQueries({ queryKey: ['stock'] })
@@ -259,7 +263,21 @@ export function SalesNewPage() {
         return
       }
 
-      if (code === 'validation_error' && err.details?.fieldErrors?.sale_date?.length) {
+      if (
+        code === 'sale_create_failed' &&
+        detailsText.includes('stock_item_id') &&
+        detailsText.includes('already exists')
+      ) {
+        queryClient.invalidateQueries({ queryKey: ['stock'] })
+        toast.error('El equipo ya fue vendido. Actualizá Stock e intentá con otro.')
+        return
+      }
+
+      if (
+        code === 'validation_error' &&
+        detailsText.includes('sale_date') &&
+        detailsText.includes('invalid datetime')
+      ) {
         toast.error('Fecha inválida. Usá formato DD/MM/AAAA.')
         return
       }

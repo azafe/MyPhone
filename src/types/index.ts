@@ -15,6 +15,14 @@ export type Profile = {
   is_enabled?: boolean
 }
 
+export type AdminUser = {
+  id: string
+  email: string | null
+  full_name: string
+  role: 'owner' | 'admin' | 'seller'
+  is_enabled: boolean
+}
+
 export type StockState =
   | 'outlet'
   | 'used_premium'
