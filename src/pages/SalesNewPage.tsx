@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchStock } from '../services/stock'
 import { createSale, fetchSellers, type CreateSalePayload } from '../services/sales'
+import { useAuth } from '../hooks/useAuth'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Field } from '../components/ui/Field'
@@ -46,14 +47,33 @@ const paymentSchema = z.object({
   note: z.string().optional(),
 })
 
+function parseDisplayDateToIso(value: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim())
+  if (!match) return null
+
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null
+  }
+
+  return date.toISOString()
+}
+
 const schema = z
   .object({
-    sale_date: z.string().min(1, 'Fecha requerida'),
+    sale_date: z
+      .string()
+      .trim()
+      .min(1, 'Fecha requerida')
+      .regex(/^\d{2}\/\d{2}\/\d{4}$/, 'Formato DD/MM/AAAA'),
     seller_id: z.string().optional(),
     customer_name: z.string().min(1, 'Nombre requerido'),
     customer_phone: z.string().min(1, 'Teléfono requerido'),
     customer_dni: z.string().optional(),
-    currency: z.enum(['ARS', 'USD']).default('ARS'),
     fx_rate_used: z.coerce.number().optional().nullable(),
     details: z.string().optional(),
     includes_cube_20w: z.boolean().default(false),
@@ -61,8 +81,13 @@ const schema = z
     payments: z.array(paymentSchema).min(1, 'Debe existir al menos 1 pago'),
   })
   .superRefine((values, ctx) => {
-    if (values.currency === 'USD' && (!values.fx_rate_used || values.fx_rate_used <= 0)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Tipo de cambio requerido para USD', path: ['fx_rate_used'] })
+    if (!parseDisplayDateToIso(values.sale_date)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Fecha inválida', path: ['sale_date'] })
+    }
+
+    const hasUsdPayment = values.payments.some((payment) => payment.currency === 'USD')
+    if (hasUsdPayment && (!values.fx_rate_used || values.fx_rate_used <= 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Tipo de cambio requerido para pagos en USD', path: ['fx_rate_used'] })
     }
 
     const stockIds = new Set<string>()
@@ -102,8 +127,12 @@ type SaleFormPayment = SaleFormInput['payments'][number]
 const EMPTY_ITEMS: SaleFormItem[] = []
 const EMPTY_PAYMENTS: SaleFormPayment[] = []
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
+function todayDisplayDate() {
+  const now = new Date()
+  const day = String(now.getDate()).padStart(2, '0')
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const year = String(now.getFullYear())
+  return `${day}/${month}/${year}`
 }
 
 function getArsAmount(payment: SaleFormPayment, fxRate: number) {
@@ -117,6 +146,7 @@ function getArsAmount(payment: SaleFormPayment, fxRate: number) {
 export function SalesNewPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { profile } = useAuth()
   const [searchParams] = useSearchParams()
   const preselectedStock = searchParams.get('stock') ?? ''
 
@@ -138,31 +168,46 @@ export function SalesNewPage() {
     })
   }, [stockQuery.data])
 
+  const sellers = (() => {
+    const list = sellersQuery.data ?? []
+    if (!profile?.id) return list
+
+    const exists = list.some((seller) => seller.id === profile.id)
+    if (exists) return list
+
+    return [
+      {
+        id: profile.id,
+        full_name: profile.full_name || profile.email || 'Usuario actual',
+        role: profile.role,
+      },
+      ...list,
+    ]
+  })()
+
   const form = useForm<SaleFormInput>({
     resolver: zodResolver(schema),
     defaultValues: {
-      sale_date: todayISO(),
+      sale_date: todayDisplayDate(),
       customer_name: '',
       customer_phone: '',
       customer_dni: '',
-      currency: 'ARS',
       fx_rate_used: null,
       details: '',
       includes_cube_20w: false,
       items: [{ source: 'stock', stock_item_id: preselectedStock, sale_price_ars: 0 }],
-      payments: [{ method: 'cash', currency: 'ARS', amount: 0 }],
+      payments: [{ method: 'cash', currency: 'ARS', amount: '' as unknown as number }],
     },
   })
 
   const watchedItems = useWatch({ control: form.control, name: 'items' })
   const watchedPayments = useWatch({ control: form.control, name: 'payments' })
-  const watchedCurrency = useWatch({ control: form.control, name: 'currency' })
   const watchedFxRate = useWatch({ control: form.control, name: 'fx_rate_used' })
 
   const items = watchedItems ?? EMPTY_ITEMS
   const payments = watchedPayments ?? EMPTY_PAYMENTS
-  const currency = watchedCurrency ?? 'ARS'
   const fxRate = Number(watchedFxRate ?? 0)
+  const hasUsdPayment = useMemo(() => payments.some((payment) => payment.currency === 'USD'), [payments])
 
   const totalArs = useMemo(
     () => items.reduce((sum, item) => sum + Number(item.sale_price_ars || 0), 0),
@@ -182,6 +227,13 @@ export function SalesNewPage() {
     })
   }, [availableStock, form, preselectedStock])
 
+  useEffect(() => {
+    if (!profile?.id) return
+    const currentSellerId = form.getValues('seller_id')
+    if (currentSellerId) return
+    form.setValue('seller_id', profile.id, { shouldValidate: true })
+  }, [form, profile?.id])
+
   const paidArs = useMemo(
     () => payments.reduce((sum, payment) => sum + getArsAmount(payment, fxRate), 0),
     [fxRate, payments],
@@ -198,12 +250,17 @@ export function SalesNewPage() {
       navigate('/sales')
     },
     onError: (error) => {
-      const err = error as Error & { code?: string }
+      const err = error as Error & { code?: string; details?: { fieldErrors?: Record<string, string[]> } }
       const code = String(err.code ?? '').toLowerCase()
 
       if (code === 'stock_conflict') {
         queryClient.invalidateQueries({ queryKey: ['stock'] })
         toast.error('El equipo ya no está disponible. Actualizá Stock e intentá nuevamente.')
+        return
+      }
+
+      if (code === 'validation_error' && err.details?.fieldErrors?.sale_date?.length) {
+        toast.error('Fecha inválida. Usá formato DD/MM/AAAA.')
         return
       }
 
@@ -231,7 +288,7 @@ export function SalesNewPage() {
   }
 
   const addPayment = () => {
-    form.setValue('payments', [...payments, { method: 'cash', currency: 'ARS', amount: 0 }], {
+    form.setValue('payments', [...payments, { method: 'cash', currency: 'ARS', amount: '' as unknown as number }], {
       shouldDirty: true,
       shouldValidate: true,
     })
@@ -274,6 +331,12 @@ export function SalesNewPage() {
 
   const onSubmit = (values: SaleFormInput) => {
     const parsed: SaleFormValues = schema.parse(values)
+    const saleDateIso = parseDisplayDateToIso(parsed.sale_date)
+
+    if (!saleDateIso) {
+      toast.error('Fecha inválida. Usá formato DD/MM/AAAA.')
+      return
+    }
 
     if (totalArs <= 0) {
       toast.error('El total debe ser mayor a 0')
@@ -284,9 +347,12 @@ export function SalesNewPage() {
       parsed.payments.length === 1 ? parsed.payments[0].method : 'mixed'
 
     const firstCardPayment = parsed.payments.find((payment) => payment.method === 'card')
+    const hasUsdPayments = parsed.payments.some((payment) => payment.currency === 'USD')
+    const onlyUsdPayments = parsed.payments.length > 0 && parsed.payments.every((payment) => payment.currency === 'USD')
+    const fxRateUsed = hasUsdPayments ? Number(parsed.fx_rate_used ?? 0) : 0
 
     const payload: CreateSalePayload = {
-      sale_date: parsed.sale_date,
+      sale_date: saleDateIso,
       seller_id: parsed.seller_id || undefined,
       customer: {
         name: parsed.customer_name,
@@ -299,12 +365,12 @@ export function SalesNewPage() {
       surcharge_pct: firstCardPayment?.surcharge_pct ?? null,
       deposit_ars: parsed.payments
         .filter((payment) => payment.method === 'deposit')
-        .reduce((sum, payment) => sum + getArsAmount(payment, Number(parsed.fx_rate_used ?? 0)), 0),
-      currency: parsed.currency,
-      fx_rate_used: parsed.currency === 'USD' ? Number(parsed.fx_rate_used ?? 0) : null,
+        .reduce((sum, payment) => sum + getArsAmount(payment, fxRateUsed), 0),
+      currency: onlyUsdPayments ? 'USD' : 'ARS',
+      fx_rate_used: hasUsdPayments ? fxRateUsed : null,
       total_usd:
-        parsed.currency === 'USD' && Number(parsed.fx_rate_used ?? 0) > 0
-          ? Number((totalArs / Number(parsed.fx_rate_used ?? 0)).toFixed(2))
+        onlyUsdPayments && fxRateUsed > 0
+          ? Number((totalArs / fxRateUsed).toFixed(2))
           : null,
       total_ars: totalArs,
       balance_due_ars: balanceDueArs,
@@ -341,31 +407,20 @@ export function SalesNewPage() {
 
       <Card className="p-5">
         <h3 className="text-lg font-semibold text-[#0F172A]">Datos generales</h3>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
           <Field label="Fecha">
-            <Input type="date" {...form.register('sale_date')} />
+            <Input placeholder="DD/MM/AAAA" inputMode="numeric" {...form.register('sale_date')} />
           </Field>
           <Field label="Vendedor">
             <Select {...form.register('seller_id')}>
               <option value="">Sin asignar</option>
-              {(sellersQuery.data ?? []).map((seller) => (
+              {sellers.map((seller) => (
                 <option key={seller.id} value={seller.id}>
                   {seller.full_name}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Moneda operación">
-            <Select {...form.register('currency')}>
-              <option value="ARS">ARS</option>
-              <option value="USD">USD</option>
-            </Select>
-          </Field>
-          {currency === 'USD' && (
-            <Field label="Dólar usado">
-              <Input type="number" min={0} {...form.register('fx_rate_used')} />
-            </Field>
-          )}
         </div>
       </Card>
 
@@ -486,6 +541,14 @@ export function SalesNewPage() {
           </Button>
         </div>
 
+        {hasUsdPayment ? (
+          <div className="mt-4 max-w-[240px]">
+            <Field label="Dólar usado (pagos USD)">
+              <Input type="number" min={0} step="0.01" {...form.register('fx_rate_used')} />
+            </Field>
+          </div>
+        ) : null}
+
         <div className="mt-4 space-y-3">
           {payments.map((payment, index) => {
             const paymentErrors = form.formState.errors.payments?.[index]
@@ -519,10 +582,14 @@ export function SalesNewPage() {
                   </Field>
                   <Field label="Monto">
                     <Input
-                      type="number"
-                      min={0}
-                      value={Number(payment.amount ?? 0)}
-                      onChange={(event) => updatePayment(index, { amount: Number(event.target.value) || 0 })}
+                      type="text"
+                      inputMode="decimal"
+                      value={payment.amount == null ? '' : String(payment.amount)}
+                      onChange={(event) =>
+                        updatePayment(index, {
+                          amount: event.target.value === '' ? ('' as unknown as number) : Number(event.target.value),
+                        })
+                      }
                     />
                   </Field>
                   {payment.method === 'card' ? (
