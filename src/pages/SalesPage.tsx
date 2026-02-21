@@ -254,9 +254,14 @@ export function SalesPage() {
     }
 
     const normalizedReason = cancelReason.trim()
+    if (!normalizedReason) {
+      toast.error('Ingresá el motivo de cancelación.')
+      return
+    }
+
     const payload: CancelSalePayload = {
       restock_state: cancelRestockState,
-      ...(normalizedReason ? { reason: normalizedReason } : {}),
+      reason: normalizedReason,
     }
 
     cancelMutation.mutate({
@@ -428,7 +433,7 @@ export function SalesPage() {
                 <Button
                   variant="danger"
                   onClick={handleCancelSale}
-                  disabled={cancelMutation.isPending || updateMutation.isPending}
+                  disabled={cancelMutation.isPending || updateMutation.isPending || cancelReason.trim().length === 0}
                 >
                   {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar venta'}
                 </Button>
@@ -521,7 +526,7 @@ export function SalesPage() {
                     </Select>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#7F1D1D]">Motivo (opcional)</label>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#7F1D1D]">Motivo (requerido)</label>
                     <Input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Ej: cliente se arrepintió" />
                   </div>
                 </div>
