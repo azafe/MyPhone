@@ -5,7 +5,18 @@ import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { createStockItem, fetchStockPage, reserveStockItem, setStockPromo, setStockState } from '../services/stock'
+import {
+  STOCK_SOLD_LINKED_HELP,
+  STOCK_SOLD_LINKED_LABEL,
+  createStockItem,
+  fetchStockPage,
+  isStockItemSoldOrLinked,
+  reserveStockItem,
+  resolveStockMutationErrorMessage,
+  runStockStateTransitionGuard,
+  setStockPromo,
+  setStockState,
+} from '../services/stock'
 import type { StockItem, StockState } from '../types'
 import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
@@ -223,8 +234,7 @@ export function StockPage() {
       toast.success('Estado actualizado')
     },
     onError: (error) => {
-      const err = error as Error
-      toast.error(err.message || 'No se pudo cambiar estado')
+      toast.error(resolveStockMutationErrorMessage(error, 'No se pudo cambiar estado'))
     },
   })
 
@@ -234,8 +244,7 @@ export function StockPage() {
       queryClient.invalidateQueries({ queryKey: ['stock'] })
     },
     onError: (error) => {
-      const err = error as Error
-      toast.error(err.message || 'No se pudo actualizar promo')
+      toast.error(resolveStockMutationErrorMessage(error, 'No se pudo actualizar promo'))
     },
   })
 
@@ -256,8 +265,7 @@ export function StockPage() {
       reserveForm.reset({ reserve_type: 'reserva', reserve_amount_ars: null, reserve_notes: '' })
     },
     onError: (error) => {
-      const err = error as Error
-      toast.error(err.message || 'No se pudo reservar/señar')
+      toast.error(resolveStockMutationErrorMessage(error, 'No se pudo reservar/señar'))
     },
   })
 
@@ -355,6 +363,16 @@ export function StockPage() {
     setPage(1)
   }
 
+  const handleStateChange = (item: StockItem, nextState: StockState) => {
+    const result = runStockStateTransitionGuard(item, nextState, () => {
+      stateMutation.mutate({ id: item.id, state: nextState })
+    })
+
+    if (!result.allowed) {
+      toast.error(result.message)
+    }
+  }
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -423,6 +441,7 @@ export function StockPage() {
           <div className="space-y-2">
             {paginatedStock.map((item) => {
               const itemState = resolveState(item)
+              const isSoldLinked = isStockItemSoldOrLinked(item)
               return (
                 <article key={item.id} className="rounded-xl border border-[#E6EBF2] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
                   <div className="grid gap-3 md:grid-cols-[2.2fr_1.1fr_1fr_1fr] md:items-start">
@@ -449,6 +468,12 @@ export function StockPage() {
                         <span>•</span>
                         <span>{item.color || 'Sin color'}</span>
                       </div>
+                      {isSoldLinked ? (
+                        <div className="mt-2 space-y-1 rounded-lg border border-[rgba(11,74,162,0.2)] bg-[rgba(11,74,162,0.06)] px-2 py-1.5">
+                          <p className="text-xs font-semibold text-[#0B4AA2]">{STOCK_SOLD_LINKED_LABEL}</p>
+                          <p className="text-[11px] text-[#1D4E89]">{STOCK_SOLD_LINKED_HELP}</p>
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="space-y-1 text-sm text-[#334155]">
@@ -461,7 +486,8 @@ export function StockPage() {
                       <Select
                         className="h-9 text-xs"
                         value={itemState}
-                        onChange={(event) => stateMutation.mutate({ id: item.id, state: event.target.value as StockState })}
+                        disabled={isSoldLinked}
+                        onChange={(event) => handleStateChange(item, event.target.value as StockState)}
                       >
                         {stateOptions.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -480,12 +506,17 @@ export function StockPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Button size="sm" className="w-full" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
+                      <Button size="sm" className="w-full" disabled={isSoldLinked} onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
                         Vender
                       </Button>
-                      <Button size="sm" variant="secondary" className="w-full" onClick={() => openReserveModal(item)}>
+                      <Button size="sm" variant="secondary" className="w-full" disabled={isSoldLinked} onClick={() => openReserveModal(item)}>
                         Reservar/Señar
                       </Button>
+                      {item.sale_id ? (
+                        <Button size="sm" variant="ghost" className="w-full" onClick={() => navigate(`/sales?sale_id=${item.sale_id}`)}>
+                          Ver venta
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                   {item.details ? (

@@ -47,6 +47,7 @@ export type StockItem = {
   id: string
   state: StockState
   status?: StockStatus | null
+  sale_id?: string | null
   category?: string | null
   brand?: string | null
   model: string

@@ -37,6 +37,10 @@ export type StockPageResult = {
   serverPagination: boolean
 }
 
+export const STOCK_SOLD_LINKED_LABEL = 'Vendido (vinculado a venta)'
+export const STOCK_SOLD_LINKED_HELP = 'Para revertir, cancelar la venta o reingresar el equipo.'
+export const STOCK_CONFLICT_MESSAGE = 'El equipo ya está vendido y no puede cambiarse desde stock. Cancelá la venta o reingresalo.'
+
 function parseNumber(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
@@ -45,6 +49,12 @@ function parseNumber(value: unknown) {
 function parsePositiveInt(value: unknown) {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function asOptionalString(value: unknown) {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -109,6 +119,41 @@ function diffDays(fromIso?: string | null) {
   const utcFrom = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate())
   const utcNow = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
   return Math.max(0, Math.floor((utcNow - utcFrom) / 86400000))
+}
+
+export function isStockItemSoldOrLinked(item: Pick<StockItem, 'state' | 'status' | 'sale_id'>) {
+  const status = String(item.status ?? '').toLowerCase()
+  const isSoldState = item.state === 'sold' || status === 'sold'
+  const hasSaleLink = typeof item.sale_id === 'string' && item.sale_id.trim().length > 0
+  return isSoldState || hasSaleLink
+}
+
+export function canChangeStockState(item: Pick<StockItem, 'state' | 'status' | 'sale_id'>, nextState: StockState) {
+  if (isStockItemSoldOrLinked(item) && nextState !== 'sold') {
+    return false
+  }
+  return true
+}
+
+export function runStockStateTransitionGuard(
+  item: Pick<StockItem, 'state' | 'status' | 'sale_id'>,
+  nextState: StockState,
+  onAllowed: () => void,
+) {
+  if (!canChangeStockState(item, nextState)) {
+    return { allowed: false as const, message: STOCK_CONFLICT_MESSAGE }
+  }
+
+  onAllowed()
+  return { allowed: true as const }
+}
+
+export function resolveStockMutationErrorMessage(error: unknown, fallbackMessage: string) {
+  const err = error as Error & { code?: string }
+  if (err?.code === 'stock_conflict') {
+    return STOCK_CONFLICT_MESSAGE
+  }
+  return err?.message || fallbackMessage
 }
 
 function mapLegacyStatus(
@@ -205,6 +250,7 @@ function normalizeStockItem(raw: Record<string, unknown>): StockItem {
     id: String(raw.id ?? ''),
     state,
     status: (raw.status as StockItem['status']) ?? state,
+    sale_id: asOptionalString(raw.sale_id) ?? asOptionalString(raw.saleId),
     category: (raw.category as string | undefined) ?? null,
     brand: (raw.brand as string | undefined) ?? null,
     model: String(raw.model ?? ''),
