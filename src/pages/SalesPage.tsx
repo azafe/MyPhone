@@ -1,14 +1,26 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { fetchSalesPage, fetchSellers } from '../services/sales'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { cancelSale, fetchSalesPage, fetchSellers, updateSale, type CancelSalePayload, type UpdateSalePayload } from '../services/sales'
+import { useAuth } from '../hooks/useAuth'
 import type { Sale } from '../types'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+import { Modal } from '../components/ui/Modal'
 import { Select } from '../components/ui/Select'
 
 const PAGE_SIZE = 30
 const EMPTY_SALES: Sale[] = []
+const RESTOCK_STATE_OPTIONS: Array<{ value: CancelSalePayload['restock_state']; label: string }> = [
+  { value: 'used_premium', label: 'Usados Premium' },
+  { value: 'outlet', label: 'Outlet' },
+  { value: 'new', label: 'Nuevo' },
+  { value: 'drawer', label: 'Cajón' },
+  { value: 'service_tech', label: 'Servicio Técnico' },
+  { value: 'reserved', label: 'Reserva' },
+  { value: 'deposit', label: 'Seña' },
+]
 
 function formatDate(value?: string | null) {
   if (!value) return '—'
@@ -62,13 +74,32 @@ function resolveItemSummary(sale: Sale) {
   return 'Sin equipo asociado'
 }
 
+function formatSaleStatus(value?: string | null) {
+  const status = String(value ?? '').toLowerCase()
+  if (status === 'completed' || status === 'paid') return 'Completada'
+  if (status === 'pending') return 'Pendiente'
+  if (status === 'cancelled') return 'Cancelada'
+  return value || '—'
+}
+
 export function SalesPage() {
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [, setSearchParams] = useSearchParams()
+  const { profile } = useAuth()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [sellerId, setSellerId] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
+  const [editSellerId, setEditSellerId] = useState('')
+  const [editDetails, setEditDetails] = useState('')
+  const [editIncludesCube, setEditIncludesCube] = useState(false)
+  const [cancelRestockState, setCancelRestockState] = useState<CancelSalePayload['restock_state']>('used_premium')
+  const [cancelReason, setCancelReason] = useState('')
+
+  const canOperateSales = profile?.role === 'owner'
 
   const sellersQuery = useQuery({
     queryKey: ['users', 'sellers'],
@@ -88,6 +119,37 @@ export function SalesPage() {
         sort_by: 'sale_date',
         sort_dir: 'desc',
       }),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ saleId, payload }: { saleId: string; payload: UpdateSalePayload }) => updateSale(saleId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
+      toast.success('Venta actualizada')
+    },
+    onError: (error) => {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo actualizar la venta')
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ saleId, payload }: { saleId: string; payload: CancelSalePayload }) => cancelSale(saleId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
+      queryClient.invalidateQueries({ queryKey: ['stock'] })
+      toast.success('Venta cancelada y equipo reingresado')
+      setSelectedSale(null)
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current)
+        next.delete('sale_id')
+        return next
+      })
+    },
+    onError: (error) => {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo cancelar la venta')
+    },
   })
 
   const salesPageData = salesQuery.data
@@ -150,6 +212,56 @@ export function SalesPage() {
     setPage(1)
   }
 
+  const openSaleModal = (sale: Sale) => {
+    setSelectedSale(sale)
+    setEditSellerId(sale.seller_id ?? '')
+    setEditDetails((sale.details ?? sale.notes ?? '').trim())
+    setEditIncludesCube(Boolean(sale.includes_cube_20w))
+    setCancelRestockState('used_premium')
+    setCancelReason('')
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('sale_id', sale.id)
+      return next
+    })
+  }
+
+  const closeSaleModal = () => {
+    setSelectedSale(null)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('sale_id')
+      return next
+    })
+  }
+
+  const handleSaveSale = () => {
+    if (!selectedSale || !canOperateSales) return
+    const payload: UpdateSalePayload = {
+      seller_id: editSellerId || null,
+      details: editDetails.trim() || null,
+      notes: editDetails.trim() || null,
+      includes_cube_20w: editIncludesCube,
+    }
+    updateMutation.mutate({ saleId: selectedSale.id, payload })
+  }
+
+  const handleCancelSale = () => {
+    if (!selectedSale || !canOperateSales) return
+    if (String(selectedSale.status ?? '').toLowerCase() === 'cancelled') {
+      toast.error('La venta ya está cancelada.')
+      return
+    }
+
+    cancelMutation.mutate({
+      saleId: selectedSale.id,
+      payload: {
+        restock_state: cancelRestockState,
+        reason: cancelReason.trim() || null,
+      },
+    })
+  }
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -210,13 +322,27 @@ export function SalesPage() {
           {paginatedSales.map((sale) => {
             const paymentLabel = formatPaymentMethod(resolvePaymentMethod(sale))
             const pendingBalance = Number(sale.balance_due_ars ?? 0)
+            const status = String(sale.status ?? '').toLowerCase()
             return (
-              <article key={sale.id} className="rounded-xl border border-[#E6EBF2] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
+              <article
+                key={sale.id}
+                className="cursor-pointer rounded-xl border border-[#E6EBF2] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.06)] transition hover:border-[#BFDBFE]"
+                onClick={() => openSaleModal(sale)}
+              >
                 <div className="grid gap-3 md:grid-cols-[2fr_1.5fr_1fr_1fr] md:items-start">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-[11px] font-semibold text-[#334155]">
                         {formatDate(sale.sale_date ?? sale.created_at)}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          status === 'cancelled'
+                            ? 'bg-[rgba(220,38,38,0.12)] text-[#991B1B]'
+                            : 'bg-[rgba(22,163,74,0.12)] text-[#166534]'
+                        }`}
+                      >
+                        {formatSaleStatus(sale.status)}
                       </span>
                       {pendingBalance > 0 ? (
                         <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[#991B1B]">
@@ -283,6 +409,124 @@ export function SalesPage() {
           </div>
         </div>
       ) : null}
+
+      <Modal
+        open={Boolean(selectedSale)}
+        title={selectedSale ? `Venta ${selectedSale.id.slice(0, 8)}` : 'Venta'}
+        subtitle={selectedSale ? 'Gestión operativa de la venta seleccionada.' : undefined}
+        onClose={closeSaleModal}
+        actions={
+          <>
+            <Button variant="secondary" onClick={closeSaleModal}>
+              Cerrar
+            </Button>
+            {canOperateSales && selectedSale && String(selectedSale.status ?? '').toLowerCase() !== 'cancelled' ? (
+              <>
+                <Button
+                  variant="danger"
+                  onClick={handleCancelSale}
+                  disabled={cancelMutation.isPending || updateMutation.isPending}
+                >
+                  {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar venta'}
+                </Button>
+                <Button onClick={handleSaveSale} disabled={updateMutation.isPending || cancelMutation.isPending}>
+                  {updateMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+                </Button>
+              </>
+            ) : null}
+          </>
+        }
+      >
+        {selectedSale ? (
+          <div className="space-y-5">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3 text-sm text-[#334155]">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Cliente</p>
+                <p className="mt-1 font-medium text-[#0F172A]">{resolveCustomer(selectedSale)}</p>
+                <p className="text-xs text-[#64748B]">
+                  Tel: {selectedSale.customer_phone || selectedSale.customer?.phone || '—'} · DNI:{' '}
+                  {selectedSale.customer_dni || selectedSale.customer?.dni || '—'}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3 text-sm text-[#334155]">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Estado y totales</p>
+                <p className="mt-1 font-medium text-[#0F172A]">{formatSaleStatus(selectedSale.status)}</p>
+                <p className="text-xs text-[#64748B]">Fecha: {formatDate(selectedSale.sale_date ?? selectedSale.created_at)}</p>
+                <p className="text-xs text-[#64748B]">Total: {formatMoney(selectedSale.total_ars)}</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#E6EBF2] bg-white p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Equipo</p>
+              <p className="mt-1 text-sm font-medium text-[#0F172A]">{resolveItemSummary(selectedSale)}</p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Vendedor</label>
+                <Select
+                  value={editSellerId}
+                  onChange={(event) => setEditSellerId(event.target.value)}
+                  disabled={!canOperateSales || String(selectedSale.status ?? '').toLowerCase() === 'cancelled'}
+                >
+                  <option value="">Sin asignar</option>
+                  {(sellersQuery.data ?? []).map((seller) => (
+                    <option key={seller.id} value={seller.id}>
+                      {seller.full_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Cubo 20W</label>
+                <label className="flex h-11 items-center gap-2 rounded-xl border border-[#E6EBF2] px-3 text-sm text-[#0F172A]">
+                  <input
+                    type="checkbox"
+                    checked={editIncludesCube}
+                    disabled={!canOperateSales || String(selectedSale.status ?? '').toLowerCase() === 'cancelled'}
+                    onChange={(event) => setEditIncludesCube(event.target.checked)}
+                  />
+                  Incluye cubo de 20W
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Detalle</label>
+              <Input
+                value={editDetails}
+                onChange={(event) => setEditDetails(event.target.value)}
+                disabled={!canOperateSales || String(selectedSale.status ?? '').toLowerCase() === 'cancelled'}
+              />
+            </div>
+
+            {canOperateSales && String(selectedSale.status ?? '').toLowerCase() !== 'cancelled' ? (
+              <div className="space-y-3 rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-3">
+                <p className="text-sm font-semibold text-[#991B1B]">Cancelar venta y reingresar equipo</p>
+                <p className="text-xs text-[#7F1D1D]">Elegí el estado de reingreso. Este cambio impacta en stock.</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#7F1D1D]">
+                      Estado de reingreso
+                    </label>
+                    <Select value={cancelRestockState} onChange={(event) => setCancelRestockState(event.target.value as CancelSalePayload['restock_state'])}>
+                      {RESTOCK_STATE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#7F1D1D]">Motivo (opcional)</label>
+                    <Input value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Ej: cliente se arrepintió" />
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   )
 }

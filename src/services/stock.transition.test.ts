@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   STOCK_CONFLICT_MESSAGE,
+  STOCK_PROMO_BLOCKED_MESSAGE,
   canChangeStockState,
+  canToggleStockPromo,
   isStockItemSoldOrLinked,
   resolveStockMutationErrorMessage,
   runStockStateTransitionGuard,
@@ -46,5 +48,11 @@ describe('stock sold transition guard', () => {
   it('Case 4: maps backend 409 stock_conflict to friendly message', () => {
     const backendError = Object.assign(new Error('Operation failed'), { code: 'stock_conflict' })
     expect(resolveStockMutationErrorMessage(backendError, 'No se pudo cambiar estado')).toBe(STOCK_CONFLICT_MESSAGE)
+  })
+
+  it('blocks promo toggle for sold/linked stock', () => {
+    const soldLinkedItem = buildItem({ state: 'sold', status: 'sold', sale_id: 'sale-xyz' })
+    expect(canToggleStockPromo(soldLinkedItem)).toBe(false)
+    expect(STOCK_PROMO_BLOCKED_MESSAGE).toContain('promo')
   })
 })

@@ -40,6 +40,7 @@ export type StockPageResult = {
 export const STOCK_SOLD_LINKED_LABEL = 'Vendido (vinculado a venta)'
 export const STOCK_SOLD_LINKED_HELP = 'Para revertir, cancelar la venta o reingresar el equipo.'
 export const STOCK_CONFLICT_MESSAGE = 'El equipo ya está vendido y no puede cambiarse desde stock. Cancelá la venta o reingresalo.'
+export const STOCK_PROMO_BLOCKED_MESSAGE = 'El equipo ya está vendido y no puede marcarse como promo.'
 
 function parseNumber(value: unknown) {
   const parsed = Number(value)
@@ -133,6 +134,10 @@ export function canChangeStockState(item: Pick<StockItem, 'state' | 'status' | '
     return false
   }
   return true
+}
+
+export function canToggleStockPromo(item: Pick<StockItem, 'state' | 'status' | 'sale_id'>) {
+  return !isStockItemSoldOrLinked(item)
 }
 
 export function runStockStateTransitionGuard(

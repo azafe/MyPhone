@@ -63,6 +63,18 @@ export type SellerOption = {
   role?: string | null
 }
 
+export type UpdateSalePayload = {
+  seller_id?: string | null
+  details?: string | null
+  notes?: string | null
+  includes_cube_20w?: boolean
+}
+
+export type CancelSalePayload = {
+  restock_state: 'outlet' | 'used_premium' | 'reserved' | 'deposit' | 'new' | 'drawer' | 'service_tech'
+  reason?: string | null
+}
+
 function parseNumber(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
@@ -71,6 +83,20 @@ function parseNumber(value: unknown) {
 function parsePositiveInt(value: unknown) {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function isRouteNotFoundError(error: unknown) {
+  const err = error as Error & { code?: string }
+  const code = String(err?.code ?? '').toLowerCase()
+  const message = String(err?.message ?? '').toLowerCase()
+
+  return (
+    code.includes('not_found') ||
+    code.includes('route_not_found') ||
+    message.includes('route not found') ||
+    message.includes('api error: 404') ||
+    message.includes(' 404')
+  )
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -248,6 +274,48 @@ export async function deleteSale(id: string) {
   return requestFirstAvailable<unknown>(SALES_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
     method: 'DELETE',
   })
+}
+
+export async function updateSale(id: string, payload: UpdateSalePayload) {
+  const response = await requestFirstAvailable<unknown>(SALES_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
+    method: 'PATCH',
+    body: payload,
+  })
+  return asObject<Sale>(response)
+}
+
+export async function cancelSale(id: string, payload: CancelSalePayload) {
+  const cancelEndpoints = SALES_ENDPOINTS.map((endpoint) => `${endpoint}/${id}/cancel`)
+
+  try {
+    const response = await requestFirstAvailable<unknown>(cancelEndpoints, {
+      method: 'PATCH',
+      body: payload,
+    })
+    return asObject<Sale>(response)
+  } catch (error) {
+    if (!isRouteNotFoundError(error)) {
+      throw error
+    }
+  }
+
+  try {
+    const response = await requestFirstAvailable<unknown>(cancelEndpoints, {
+      method: 'POST',
+      body: payload,
+    })
+    return asObject<Sale>(response)
+  } catch (error) {
+    if (!isRouteNotFoundError(error)) {
+      throw error
+    }
+  }
+
+  const response = await requestFirstAvailable<unknown>(SALES_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
+    method: 'DELETE',
+    body: payload,
+  })
+  return asObject<Sale>(response)
 }
 
 export async function fetchSellers() {

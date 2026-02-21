@@ -8,6 +8,8 @@ import toast from 'react-hot-toast'
 import {
   STOCK_SOLD_LINKED_HELP,
   STOCK_SOLD_LINKED_LABEL,
+  STOCK_PROMO_BLOCKED_MESSAGE,
+  canToggleStockPromo,
   createStockItem,
   fetchStockPage,
   isStockItemSoldOrLinked,
@@ -373,6 +375,15 @@ export function StockPage() {
     }
   }
 
+  const handlePromoToggle = (item: StockItem) => {
+    if (!canToggleStockPromo(item)) {
+      toast.error(STOCK_PROMO_BLOCKED_MESSAGE)
+      return
+    }
+
+    promoMutation.mutate({ id: item.id, isPromo: !item.is_promo })
+  }
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -499,7 +510,8 @@ export function StockPage() {
                         size="sm"
                         variant="ghost"
                         className="w-full justify-start md:justify-center"
-                        onClick={() => promoMutation.mutate({ id: item.id, isPromo: !item.is_promo })}
+                        disabled={isSoldLinked}
+                        onClick={() => handlePromoToggle(item)}
                       >
                         {item.is_promo ? 'Quitar promo' : 'Marcar promo'}
                       </Button>
