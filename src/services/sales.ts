@@ -72,7 +72,7 @@ export type UpdateSalePayload = {
 
 export type CancelSalePayload = {
   restock_state: 'outlet' | 'used_premium' | 'reserved' | 'deposit' | 'new' | 'drawer' | 'service_tech'
-  reason?: string | null
+  reason?: string
 }
 
 function parseNumber(value: unknown) {

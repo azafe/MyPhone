@@ -253,12 +253,15 @@ export function SalesPage() {
       return
     }
 
+    const normalizedReason = cancelReason.trim()
+    const payload: CancelSalePayload = {
+      restock_state: cancelRestockState,
+      ...(normalizedReason ? { reason: normalizedReason } : {}),
+    }
+
     cancelMutation.mutate({
       saleId: selectedSale.id,
-      payload: {
-        restock_state: cancelRestockState,
-        reason: cancelReason.trim() || null,
-      },
+      payload,
     })
   }
 
