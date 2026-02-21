@@ -16,8 +16,7 @@ import {
   reserveStockItem,
   resolveStockMutationErrorMessage,
   runStockStateTransitionGuard,
-  setStockPromo,
-  setStockState,
+  updateStockItem,
 } from '../services/stock'
 import type { StockItem, StockState } from '../types'
 import { Button } from '../components/ui/Button'
@@ -37,7 +36,32 @@ const stateOptions: Array<{ value: StockState; label: string }> = [
   { value: 'sold', label: 'Vendido' },
 ]
 
-const storageOptions = [64, 128, 256, 512] as const
+const iphoneModelSuggestions = [
+  'iPhone SE',
+  'iPhone 11',
+  'iPhone 11 Pro',
+  'iPhone 11 Pro Max',
+  'iPhone 12',
+  'iPhone 12 mini',
+  'iPhone 12 Pro',
+  'iPhone 12 Pro Max',
+  'iPhone 13',
+  'iPhone 13 mini',
+  'iPhone 13 Pro',
+  'iPhone 13 Pro Max',
+  'iPhone 14',
+  'iPhone 14 Plus',
+  'iPhone 14 Pro',
+  'iPhone 14 Pro Max',
+  'iPhone 15',
+  'iPhone 15 Plus',
+  'iPhone 15 Pro',
+  'iPhone 15 Pro Max',
+  'iPhone 16',
+  'iPhone 16 Plus',
+  'iPhone 16 Pro',
+  'iPhone 16 Pro Max',
+] as const
 
 const stateLabelMap = stateOptions.reduce(
   (acc, option) => {
@@ -117,25 +141,25 @@ export function StockPage() {
   const queryClient = useQueryClient()
   const [stateFilter, setStateFilter] = useState('')
   const [modelFilter, setModelFilter] = useState('')
-  const [storageFilter, setStorageFilter] = useState('')
-  const [batteryFilter, setBatteryFilter] = useState('')
   const [promoFilter, setPromoFilter] = useState<'all' | 'promo' | 'no_promo'>('all')
-  const [providerFilter, setProviderFilter] = useState('')
   const [page, setPage] = useState(1)
   const [newOpen, setNewOpen] = useState(false)
   const [reserveOpen, setReserveOpen] = useState(false)
   const [reserveTarget, setReserveTarget] = useState<StockItem | null>(null)
+  const [detailTarget, setDetailTarget] = useState<StockItem | null>(null)
+  const [detailState, setDetailState] = useState<StockState>('new')
+  const [detailPrice, setDetailPrice] = useState('')
+  const [detailProvider, setDetailProvider] = useState('')
+  const [detailDetails, setDetailDetails] = useState('')
+  const [detailPromo, setDetailPromo] = useState(false)
 
   const stockQuery = useQuery({
-    queryKey: ['stock', stateFilter, modelFilter, storageFilter, batteryFilter, promoFilter, providerFilter, page, PAGE_SIZE],
+    queryKey: ['stock', stateFilter, modelFilter, promoFilter, page, PAGE_SIZE],
     queryFn: () =>
       fetchStockPage({
         state: stateFilter || undefined,
         model: modelFilter || undefined,
-        storage_gb: storageFilter ? Number(storageFilter) : undefined,
-        battery_min: batteryFilter ? Number(batteryFilter) : undefined,
         promo: promoFilter === 'all' ? undefined : promoFilter === 'promo',
-        provider: providerFilter || undefined,
         page,
         page_size: PAGE_SIZE,
         sort_by: 'received_at',
@@ -145,6 +169,14 @@ export function StockPage() {
 
   const fetchedStock = stockQuery.data?.items ?? EMPTY_STOCK_ITEMS
   const usingServerPagination = Boolean(stockQuery.data?.serverPagination)
+  const modelSuggestions = useMemo(() => {
+    const suggestions = new Set<string>(iphoneModelSuggestions)
+    fetchedStock.forEach((item) => {
+      const model = String(item.model ?? '').trim()
+      if (model) suggestions.add(model)
+    })
+    return [...suggestions].sort((a, b) => a.localeCompare(b, 'es'))
+  }, [fetchedStock])
 
   const processedStock = useMemo(() => {
     if (usingServerPagination) {
@@ -153,20 +185,17 @@ export function StockPage() {
 
     return fetchedStock
       .filter((item) => {
-      if (modelFilter && !String(item.model ?? '').toLowerCase().includes(modelFilter.toLowerCase())) return false
-      if (providerFilter && !String(item.provider_name ?? '').toLowerCase().includes(providerFilter.toLowerCase())) return false
-      if (storageFilter && Number(item.storage_gb ?? 0) !== Number(storageFilter)) return false
-      if (batteryFilter && Number(item.battery_pct ?? 0) < Number(batteryFilter)) return false
-      if (promoFilter === 'promo' && !item.is_promo) return false
-      if (promoFilter === 'no_promo' && item.is_promo) return false
-      return true
-    })
+        if (modelFilter && !String(item.model ?? '').toLowerCase().includes(modelFilter.toLowerCase())) return false
+        if (promoFilter === 'promo' && !item.is_promo) return false
+        if (promoFilter === 'no_promo' && item.is_promo) return false
+        return true
+      })
       .sort((a, b) => {
         const aDate = new Date(a.received_at ?? a.created_at ?? 0).getTime()
         const bDate = new Date(b.received_at ?? b.created_at ?? 0).getTime()
         return bDate - aDate
       })
-  }, [batteryFilter, fetchedStock, modelFilter, promoFilter, providerFilter, storageFilter, usingServerPagination])
+  }, [fetchedStock, modelFilter, promoFilter, usingServerPagination])
 
   const totalCount = usingServerPagination
     ? Number(stockQuery.data?.total ?? fetchedStock.length)
@@ -229,24 +258,15 @@ export function StockPage() {
     },
   })
 
-  const stateMutation = useMutation({
-    mutationFn: ({ id, state }: { id: string; state: StockState }) => setStockState(id, state),
+  const detailMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<StockItem> }) => updateStockItem(id, payload),
     onSuccess: () => {
+      toast.success('Equipo actualizado')
       queryClient.invalidateQueries({ queryKey: ['stock'] })
-      toast.success('Estado actualizado')
+      setDetailTarget(null)
     },
     onError: (error) => {
-      toast.error(resolveStockMutationErrorMessage(error, 'No se pudo cambiar estado'))
-    },
-  })
-
-  const promoMutation = useMutation({
-    mutationFn: ({ id, isPromo }: { id: string; isPromo: boolean }) => setStockPromo(id, isPromo),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stock'] })
-    },
-    onError: (error) => {
-      toast.error(resolveStockMutationErrorMessage(error, 'No se pudo actualizar promo'))
+      toast.error(resolveStockMutationErrorMessage(error, 'No se pudo actualizar equipo'))
     },
   })
 
@@ -345,43 +365,54 @@ export function StockPage() {
     setPage(1)
   }
 
-  const handleStorageFilterChange = (value: string) => {
-    setStorageFilter(value)
-    setPage(1)
-  }
-
-  const handleBatteryFilterChange = (value: string) => {
-    setBatteryFilter(value)
-    setPage(1)
-  }
-
   const handlePromoFilterChange = (value: 'all' | 'promo' | 'no_promo') => {
     setPromoFilter(value)
     setPage(1)
   }
 
-  const handleProviderFilterChange = (value: string) => {
-    setProviderFilter(value)
-    setPage(1)
+  const openDetailModal = (item: StockItem) => {
+    setDetailTarget(item)
+    setDetailState(resolveState(item))
+    setDetailPrice(item.sale_price_ars != null ? String(item.sale_price_ars) : '')
+    setDetailProvider(item.provider_name ?? '')
+    setDetailDetails(item.details ?? '')
+    setDetailPromo(Boolean(item.is_promo))
   }
 
-  const handleStateChange = (item: StockItem, nextState: StockState) => {
-    const result = runStockStateTransitionGuard(item, nextState, () => {
-      stateMutation.mutate({ id: item.id, state: nextState })
-    })
+  const closeDetailModal = () => {
+    setDetailTarget(null)
+  }
 
-    if (!result.allowed) {
-      toast.error(result.message)
+  const handleSaveDetail = () => {
+    if (!detailTarget) return
+
+    const stateGuard = runStockStateTransitionGuard(detailTarget, detailState, () => {})
+    if (!stateGuard.allowed) {
+      toast.error(stateGuard.message)
+      return
     }
-  }
 
-  const handlePromoToggle = (item: StockItem) => {
-    if (!canToggleStockPromo(item)) {
+    if (detailPromo !== Boolean(detailTarget.is_promo) && !canToggleStockPromo(detailTarget)) {
       toast.error(STOCK_PROMO_BLOCKED_MESSAGE)
       return
     }
 
-    promoMutation.mutate({ id: item.id, isPromo: !item.is_promo })
+    const normalizedPrice = Number(String(detailPrice).replace(',', '.'))
+    if (!Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
+      toast.error('Ingresá un precio válido mayor a 0.')
+      return
+    }
+
+    detailMutation.mutate({
+      id: detailTarget.id,
+      payload: {
+        state: detailState,
+        sale_price_ars: normalizedPrice,
+        provider_name: detailProvider.trim() || null,
+        details: detailDetails.trim() || null,
+        is_promo: detailPromo,
+      },
+    })
   }
 
   return (
@@ -389,12 +420,12 @@ export function StockPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Stock</h2>
-          <p className="text-sm text-[#5B677A]">Vista operativa por estado, precio, proveedor e IMEI.</p>
+          <p className="text-sm text-[#5B677A]">Vista operativa rápida por estado, modelo, promo e IMEI.</p>
         </div>
         <Button onClick={() => setNewOpen(true)}>Nuevo equipo</Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-3">
         <Select value={stateFilter} onChange={(event) => handleStateFilterChange(event.target.value)}>
           <option value="">Estado (todos)</option>
           {stateOptions.map((option) => (
@@ -403,29 +434,22 @@ export function StockPage() {
             </option>
           ))}
         </Select>
-        <Input placeholder="Modelo" value={modelFilter} onChange={(event) => handleModelFilterChange(event.target.value)} />
-        <Select value={storageFilter} onChange={(event) => handleStorageFilterChange(event.target.value)}>
-          <option value="">GB</option>
-          {storageOptions.map((gb) => (
-            <option key={gb} value={gb}>
-              {gb} GB
-            </option>
-          ))}
-        </Select>
         <Input
-          type="number"
-          min={0}
-          max={100}
-          placeholder="Batería mínima"
-          value={batteryFilter}
-          onChange={(event) => handleBatteryFilterChange(event.target.value)}
+          list="stock-model-suggestions"
+          placeholder="Modelo (ej: iPhone 13 Pro Max)"
+          value={modelFilter}
+          onChange={(event) => handleModelFilterChange(event.target.value)}
         />
+        <datalist id="stock-model-suggestions">
+          {modelSuggestions.map((model) => (
+            <option key={model} value={model} />
+          ))}
+        </datalist>
         <Select value={promoFilter} onChange={(event) => handlePromoFilterChange(event.target.value as 'all' | 'promo' | 'no_promo')}>
           <option value="all">Promo: todos</option>
           <option value="promo">Solo promo</option>
           <option value="no_promo">Sin promo</option>
         </Select>
-        <Input placeholder="Proveedor" value={providerFilter} onChange={(event) => handleProviderFilterChange(event.target.value)} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -454,88 +478,73 @@ export function StockPage() {
               const itemState = resolveState(item)
               const isSoldLinked = isStockItemSoldOrLinked(item)
               return (
-                <article key={item.id} className="rounded-xl border border-[#E6EBF2] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
-                  <div className="grid gap-3 md:grid-cols-[2.2fr_1.1fr_1fr_1fr] md:items-start">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${stateBadgeClass[itemState]}`}>
+                <article
+                  key={item.id}
+                  className="cursor-pointer rounded-lg border border-[#E6EBF2] bg-white p-2.5 shadow-[0_1px_2px_rgba(16,24,40,0.06)] transition hover:border-[#BFDBFE]"
+                  onClick={() => openDetailModal(item)}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${stateBadgeClass[itemState]}`}>
                           {stateLabelMap[itemState]}
                         </span>
                         {item.is_promo ? (
-                          <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[11px] font-semibold text-[#991B1B]">
+                          <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#991B1B]">
                             Promo
                           </span>
                         ) : null}
-                        <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-[11px] font-semibold text-[#334155]">
+                        <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-[10px] font-semibold text-[#334155]">
                           {item.days_in_stock ?? '—'} días
                         </span>
                       </div>
-                      <h4 className="mt-2 text-base font-semibold leading-tight text-[#0F172A]">{item.model || 'Equipo sin modelo'}</h4>
-                      <p className="text-xs text-[#64748B]">IMEI {item.imei || '—'}</p>
-                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-[#475569]">
-                        <span>{item.storage_gb ?? '—'} GB</span>
-                        <span>•</span>
-                        <span>Bat {typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'}</span>
-                        <span>•</span>
-                        <span>{item.color || 'Sin color'}</span>
-                      </div>
-                      {isSoldLinked ? (
-                        <div className="mt-2 space-y-1 rounded-lg border border-[rgba(11,74,162,0.2)] bg-[rgba(11,74,162,0.06)] px-2 py-1.5">
-                          <p className="text-xs font-semibold text-[#0B4AA2]">{STOCK_SOLD_LINKED_LABEL}</p>
-                          <p className="text-[11px] text-[#1D4E89]">{STOCK_SOLD_LINKED_HELP}</p>
-                        </div>
-                      ) : null}
+                      <h4 className="mt-1 text-base font-semibold leading-tight text-[#0F172A]">
+                        {item.model || 'Equipo sin modelo'}
+                      </h4>
+                      <p className="truncate text-xs text-[#64748B]">IMEI {item.imei || '—'}</p>
+                      <p className="mt-0.5 truncate text-xs text-[#475569]">
+                        {item.storage_gb ?? '—'} GB · Bat {typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'} ·{' '}
+                        {item.color || 'Sin color'}
+                      </p>
                     </div>
 
-                    <div className="space-y-1 text-sm text-[#334155]">
+                    <div className="shrink-0 text-right">
                       <p className="text-lg font-semibold text-[#0F172A]">{formatMoney(item.sale_price_ars)}</p>
-                      <p className="truncate text-xs text-[#64748B]">Proveedor: {item.provider_name || '—'}</p>
-                      <p className="text-xs text-[#64748B]">Ingreso: {formatDate(item.received_at ?? item.created_at)}</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Select
-                        className="h-9 text-xs"
-                        value={itemState}
-                        disabled={isSoldLinked}
-                        onChange={(event) => handleStateChange(item, event.target.value as StockState)}
-                      >
-                        {stateOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </Select>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="w-full justify-start md:justify-center"
-                        disabled={isSoldLinked}
-                        onClick={() => handlePromoToggle(item)}
-                      >
-                        {item.is_promo ? 'Quitar promo' : 'Marcar promo'}
-                      </Button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Button size="sm" className="w-full" disabled={isSoldLinked} onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
-                        Vender
-                      </Button>
-                      <Button size="sm" variant="secondary" className="w-full" disabled={isSoldLinked} onClick={() => openReserveModal(item)}>
-                        Reservar/Señar
-                      </Button>
-                      {item.sale_id ? (
-                        <Button size="sm" variant="ghost" className="w-full" onClick={() => navigate(`/sales?sale_id=${item.sale_id}`)}>
-                          Ver venta
-                        </Button>
-                      ) : null}
+                      <p className="text-[11px] text-[#64748B]">{formatDate(item.received_at ?? item.created_at)}</p>
                     </div>
                   </div>
-                  {item.details ? (
-                    <p className="mt-2 truncate rounded-lg border border-[#E6EBF2] bg-[#F8FAFC] px-2 py-1 text-xs text-[#475569]">
-                      {item.details}
-                    </p>
+
+                  <p className="mt-1 truncate text-[11px] text-[#64748B]">
+                    Prov: {item.provider_name || '—'}{item.details ? ` · ${item.details}` : ''}
+                  </p>
+
+                  {isSoldLinked ? (
+                    <div className="mt-1 rounded-md border border-[rgba(11,74,162,0.2)] bg-[rgba(11,74,162,0.06)] px-2 py-1">
+                      <p className="text-[11px] font-semibold text-[#0B4AA2]">{STOCK_SOLD_LINKED_LABEL}</p>
+                      <p className="text-[10px] text-[#1D4E89]">{STOCK_SOLD_LINKED_HELP}</p>
+                    </div>
                   ) : null}
+
+                  <div className="mt-2 flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
+                    {!isSoldLinked ? (
+                      <>
+                        <Button size="sm" className="h-8 px-3" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
+                          Vender
+                        </Button>
+                        <Button size="sm" variant="secondary" className="h-8 px-3" onClick={() => openReserveModal(item)}>
+                          Reservar/Señar
+                        </Button>
+                      </>
+                    ) : null}
+                    {item.sale_id ? (
+                      <Button size="sm" variant="ghost" className="h-8 px-3" onClick={() => navigate(`/sales?sale_id=${item.sale_id}`)}>
+                        Ver venta
+                      </Button>
+                    ) : null}
+                    <Button size="sm" variant="ghost" className="h-8 px-3" onClick={() => openDetailModal(item)}>
+                      Editar
+                    </Button>
+                  </div>
                 </article>
               )
             })}
@@ -566,6 +575,111 @@ export function StockPage() {
           </div>
         </div>
       ) : null}
+
+      <Modal
+        open={Boolean(detailTarget)}
+        title={detailTarget ? detailTarget.model || 'Equipo' : 'Equipo'}
+        subtitle={detailTarget ? `IMEI ${detailTarget.imei ?? '—'}` : undefined}
+        onClose={closeDetailModal}
+        actions={
+          <>
+            <Button variant="secondary" onClick={closeDetailModal}>
+              Cerrar
+            </Button>
+            {detailTarget ? (
+              <Button onClick={handleSaveDetail} disabled={detailMutation.isPending}>
+                {detailMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        {detailTarget ? (
+          <div className="space-y-4">
+            {isStockItemSoldOrLinked(detailTarget) ? (
+              <div className="rounded-lg border border-[rgba(11,74,162,0.2)] bg-[rgba(11,74,162,0.06)] px-3 py-2">
+                <p className="text-sm font-semibold text-[#0B4AA2]">{STOCK_SOLD_LINKED_LABEL}</p>
+                <p className="text-xs text-[#1D4E89]">{STOCK_SOLD_LINKED_HELP}</p>
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Estado">
+                <Select
+                  value={detailState}
+                  disabled={isStockItemSoldOrLinked(detailTarget)}
+                  onChange={(event) => setDetailState(event.target.value as StockState)}
+                >
+                  {stateOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Precio ARS">
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={detailPrice}
+                  onChange={(event) => setDetailPrice(event.target.value)}
+                />
+              </Field>
+              <Field label="Proveedor">
+                <Input value={detailProvider} onChange={(event) => setDetailProvider(event.target.value)} />
+              </Field>
+              <Field label="Promo">
+                <label className="flex h-11 items-center gap-2 rounded-xl border border-[#E6EBF2] px-3 text-sm text-[#0F172A]">
+                  <input
+                    type="checkbox"
+                    checked={detailPromo}
+                    disabled={isStockItemSoldOrLinked(detailTarget)}
+                    onChange={(event) => setDetailPromo(event.target.checked)}
+                  />
+                  Equipo en promoción
+                </label>
+              </Field>
+            </div>
+
+            <Field label="Detalle">
+              <Input value={detailDetails} onChange={(event) => setDetailDetails(event.target.value)} />
+            </Field>
+
+            <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3 text-xs text-[#64748B]">
+              <p>
+                GB: {detailTarget.storage_gb ?? '—'} · Bat: {typeof detailTarget.battery_pct === 'number' ? `${detailTarget.battery_pct}%` : '—'} ·
+                Color: {detailTarget.color || '—'}
+              </p>
+              <p>Ingreso: {formatDate(detailTarget.received_at ?? detailTarget.created_at)}</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {!isStockItemSoldOrLinked(detailTarget) ? (
+                <>
+                  <Button size="sm" onClick={() => navigate(`/sales/new?stock=${detailTarget.id}`)}>
+                    Vender
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      closeDetailModal()
+                      openReserveModal(detailTarget)
+                    }}
+                  >
+                    Reservar/Señar
+                  </Button>
+                </>
+              ) : null}
+              {detailTarget.sale_id ? (
+                <Button size="sm" variant="ghost" onClick={() => navigate(`/sales?sale_id=${detailTarget.sale_id}`)}>
+                  Ver venta
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal
         open={newOpen}
