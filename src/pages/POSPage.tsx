@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useForm, useWatch } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { createSale, fetchSellers, type CreateSalePayload } from '../services/sales'
 import { fetchStockPage, isStockItemSoldOrLinked, reserveStockItem, resolveStockMutationErrorMessage } from '../services/stock'
+import { useAuth } from '../hooks/useAuth'
 import type { StockItem, StockState } from '../types'
 import { Button } from '../components/ui/Button'
 import { Field } from '../components/ui/Field'
@@ -40,6 +44,80 @@ const unsoldStatuses = ['available', 'reserved', 'drawer', 'service_tech']
 const PAGE_SIZE = 24
 const EMPTY_STOCK_ITEMS: StockItem[] = []
 
+const paymentSchema = z.object({
+  method: z.enum(['cash', 'transfer', 'card', 'deposit']),
+  currency: z.enum(['ARS', 'USD']),
+  amount: z.coerce.number().min(0.01, 'Monto mayor a 0'),
+  card_brand: z.string().optional(),
+  installments: z.coerce.number().optional().nullable(),
+  surcharge_pct: z.coerce.number().optional().nullable(),
+  note: z.string().optional(),
+})
+
+const saleModalSchema = z
+  .object({
+    sale_date: z
+      .string()
+      .trim()
+      .min(1, 'Fecha requerida')
+      .regex(/^\d{2}\/\d{2}\/\d{4}$/, 'Formato DD/MM/AAAA'),
+    seller_id: z.string().optional(),
+    customer_name: z.string().min(1, 'Nombre requerido'),
+    customer_phone: z.string().min(1, 'Teléfono requerido'),
+    customer_dni: z.string().optional(),
+    sale_price_ars: z.coerce.number().min(1, 'Precio mayor a 0'),
+    details: z.string().optional(),
+    includes_cube_20w: z.boolean().default(false),
+    fx_rate_used: z.coerce.number().optional().nullable(),
+    payments: z.array(paymentSchema).min(1, 'Debe existir al menos 1 pago'),
+    plan_canje_enabled: z.boolean().default(false),
+    trade_model: z.string().optional(),
+    trade_storage_gb: z.coerce.number().optional().nullable(),
+    trade_color: z.string().optional(),
+    trade_battery_pct: z.coerce.number().optional().nullable(),
+    trade_state: z.string().optional(),
+    trade_imei: z.string().optional(),
+    trade_value_taken_usd: z.coerce.number().optional().nullable(),
+    trade_resale_usd: z.coerce.number().optional().nullable(),
+    trade_send_tech: z.boolean().default(false),
+    trade_notes: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    if (!parseDisplayDateToIso(values.sale_date)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Fecha inválida', path: ['sale_date'] })
+    }
+
+    const hasUsdPayment = values.payments.some((payment) => payment.currency === 'USD')
+    if (hasUsdPayment && (!values.fx_rate_used || values.fx_rate_used <= 0)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Tipo de cambio requerido para pagos en USD', path: ['fx_rate_used'] })
+    }
+
+    if (values.plan_canje_enabled) {
+      if (!values.trade_model?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Modelo requerido', path: ['trade_model'] })
+      }
+
+      const taken = Number(values.trade_value_taken_usd ?? 0)
+      if (!Number.isFinite(taken) || taken <= 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Valor tomado requerido', path: ['trade_value_taken_usd'] })
+      }
+    }
+  })
+
+type SaleModalFormInput = z.input<typeof saleModalSchema>
+type SaleModalFormValues = z.output<typeof saleModalSchema>
+type SaleModalPayment = SaleModalFormInput['payments'][number]
+
+const EMPTY_PAYMENTS: SaleModalPayment[] = []
+
+function createEmptyPayment(): SaleModalPayment {
+  return {
+    method: 'cash',
+    currency: 'ARS',
+    amount: '' as unknown as number,
+  }
+}
+
 function resolveState(item: StockItem): StockState {
   if (item.state) return item.state
   const status = item.status ? String(item.status) : ''
@@ -64,17 +142,52 @@ function asPositiveNumber(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }
 
+function parseDisplayDateToIso(value: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim())
+  if (!match) return null
+
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0))
+
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null
+  }
+
+  return date.toISOString()
+}
+
+function todayDisplayDate() {
+  const now = new Date()
+  const day = String(now.getDate()).padStart(2, '0')
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const year = String(now.getFullYear())
+  return `${day}/${month}/${year}`
+}
+
+function getArsAmount(payment: SaleModalPayment, fxRate: number) {
+  const amount = Number(payment.amount ?? 0)
+  if (payment.currency === 'ARS') return amount
+  if (!fxRate || fxRate <= 0) return 0
+  return amount * fxRate
+}
+
 export function POSPage() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { profile } = useAuth()
   const [stateFilter, setStateFilter] = useState('')
   const [searchFilter, setSearchFilter] = useState('')
   const [page, setPage] = useState(1)
+
   const [reserveOpen, setReserveOpen] = useState(false)
   const [reserveTarget, setReserveTarget] = useState<StockItem | null>(null)
   const [reserveType, setReserveType] = useState<'reserva' | 'sena'>('reserva')
   const [reserveAmountArs, setReserveAmountArs] = useState('')
   const [reserveNotes, setReserveNotes] = useState('')
+
+  const [saleOpen, setSaleOpen] = useState(false)
+  const [saleTarget, setSaleTarget] = useState<StockItem | null>(null)
 
   const stockQuery = useQuery({
     queryKey: ['pos', 'stock', stateFilter, searchFilter, page, PAGE_SIZE],
@@ -89,6 +202,64 @@ export function POSPage() {
         sort_dir: 'desc',
       }),
   })
+
+  const sellersQuery = useQuery({
+    queryKey: ['users', 'sellers'],
+    queryFn: fetchSellers,
+  })
+
+  const sellers = (() => {
+    const list = sellersQuery.data ?? []
+    if (!profile?.id) return list
+
+    const exists = list.some((seller) => seller.id === profile.id)
+    if (exists) return list
+
+    return [
+      {
+        id: profile.id,
+        full_name: profile.full_name || profile.email || 'Usuario actual',
+        role: profile.role,
+      },
+      ...list,
+    ]
+  })()
+
+  const saleForm = useForm<SaleModalFormInput>({
+    resolver: zodResolver(saleModalSchema),
+    defaultValues: {
+      sale_date: todayDisplayDate(),
+      seller_id: profile?.id ?? undefined,
+      customer_name: '',
+      customer_phone: '',
+      customer_dni: '',
+      sale_price_ars: 0,
+      details: '',
+      includes_cube_20w: false,
+      fx_rate_used: null,
+      payments: [createEmptyPayment()],
+      plan_canje_enabled: false,
+      trade_model: '',
+      trade_storage_gb: null,
+      trade_color: '',
+      trade_battery_pct: null,
+      trade_state: '',
+      trade_imei: '',
+      trade_value_taken_usd: null,
+      trade_resale_usd: null,
+      trade_send_tech: false,
+      trade_notes: '',
+    },
+  })
+
+  const watchedPayments = useWatch({ control: saleForm.control, name: 'payments' })
+  const watchedFxRate = useWatch({ control: saleForm.control, name: 'fx_rate_used' })
+  const watchedSalePriceArs = useWatch({ control: saleForm.control, name: 'sale_price_ars' })
+  const watchedPlanCanjeEnabled = useWatch({ control: saleForm.control, name: 'plan_canje_enabled' })
+
+  const payments = watchedPayments ?? EMPTY_PAYMENTS
+  const fxRate = Number(watchedFxRate ?? 0)
+  const salePriceArs = Number(watchedSalePriceArs ?? 0)
 
   const reserveMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: { reserve_type: 'reserva' | 'sena'; reserve_amount_ars?: number; reserve_notes?: string } }) =>
@@ -108,8 +279,39 @@ export function POSPage() {
     },
   })
 
-  const fetchedStock = stockQuery.data?.items ?? EMPTY_STOCK_ITEMS
+  const saleMutation = useMutation({
+    mutationFn: createSale,
+    onSuccess: () => {
+      toast.success('Venta guardada')
+      queryClient.invalidateQueries({ queryKey: ['pos', 'stock'] })
+      queryClient.invalidateQueries({ queryKey: ['stock'] })
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
+      setSaleOpen(false)
+      setSaleTarget(null)
+    },
+    onError: (error) => {
+      const err = error as Error & { code?: string; details?: unknown }
+      const code = String(err.code ?? '').toLowerCase()
+      const detailsText =
+        typeof err.details === 'string'
+          ? err.details.toLowerCase()
+          : JSON.stringify(err.details ?? '').toLowerCase()
 
+      if (code === 'stock_conflict') {
+        toast.error('El equipo ya fue vendido o está reservado por otra operación.')
+        return
+      }
+
+      if (detailsText.includes('qty_not_supported_for_serialized_stock')) {
+        toast.error('Este equipo es único por IMEI y solo admite cantidad 1.')
+        return
+      }
+
+      toast.error(err.message || 'No se pudo guardar la venta')
+    },
+  })
+
+  const fetchedStock = stockQuery.data?.items ?? EMPTY_STOCK_ITEMS
   const items = useMemo(() => fetchedStock.filter((item) => !isStockItemSoldOrLinked(item)), [fetchedStock])
 
   const totalCount = Number(stockQuery.data?.total ?? items.length)
@@ -121,12 +323,50 @@ export function POSPage() {
     [items],
   )
 
+  const paidArs = useMemo(
+    () => payments.reduce((sum, payment) => sum + getArsAmount(payment, fxRate), 0),
+    [payments, fxRate],
+  )
+
+  const balanceDueArs = useMemo(() => Math.max(0, salePriceArs - paidArs), [paidArs, salePriceArs])
+
   const openReserveModal = (item: StockItem) => {
     setReserveTarget(item)
     setReserveType('reserva')
     setReserveAmountArs('')
     setReserveNotes('')
     setReserveOpen(true)
+  }
+
+  const openSaleModal = (item: StockItem) => {
+    setSaleTarget(item)
+    setSaleOpen(true)
+
+    const defaultPrice = Number(item.sale_price_ars ?? 0)
+
+    saleForm.reset({
+      sale_date: todayDisplayDate(),
+      seller_id: profile?.id ?? undefined,
+      customer_name: '',
+      customer_phone: '',
+      customer_dni: '',
+      sale_price_ars: defaultPrice,
+      details: '',
+      includes_cube_20w: false,
+      fx_rate_used: null,
+      payments: [{ method: 'cash', currency: 'ARS', amount: defaultPrice as unknown as number }],
+      plan_canje_enabled: false,
+      trade_model: '',
+      trade_storage_gb: null,
+      trade_color: '',
+      trade_battery_pct: null,
+      trade_state: '',
+      trade_imei: '',
+      trade_value_taken_usd: null,
+      trade_resale_usd: null,
+      trade_send_tech: false,
+      trade_notes: '',
+    })
   }
 
   const handleReserve = () => {
@@ -140,6 +380,107 @@ export function POSPage() {
         reserve_notes: reserveNotes.trim() || undefined,
       },
     })
+  }
+
+  const addPayment = () => {
+    const next = [...payments, createEmptyPayment()]
+    saleForm.setValue('payments', next, { shouldDirty: true, shouldValidate: true })
+  }
+
+  const removePayment = (index: number) => {
+    if (payments.length <= 1) return
+    const next = payments.filter((_, paymentIndex) => paymentIndex !== index)
+    saleForm.setValue('payments', next, { shouldDirty: true, shouldValidate: true })
+  }
+
+  const updatePayment = (index: number, patch: Partial<SaleModalPayment>) => {
+    const next = [...payments]
+    next[index] = { ...next[index], ...patch }
+    saleForm.setValue('payments', next, { shouldDirty: true, shouldValidate: true })
+  }
+
+  const handleSubmitSale = (values: SaleModalFormInput) => {
+    if (!saleTarget) return
+
+    const parsed: SaleModalFormValues = saleModalSchema.parse(values)
+    const saleDateIso = parseDisplayDateToIso(parsed.sale_date)
+
+    if (!saleDateIso) {
+      toast.error('Fecha inválida. Usá formato DD/MM/AAAA.')
+      return
+    }
+
+    if (!Number.isFinite(salePriceArs) || salePriceArs <= 0) {
+      toast.error('El total debe ser mayor a 0.')
+      return
+    }
+
+    const paymentMethod = parsed.payments.length === 1 ? parsed.payments[0].method : 'mixed'
+    const firstCardPayment = parsed.payments.find((payment) => payment.method === 'card')
+    const hasUsdPayments = parsed.payments.some((payment) => payment.currency === 'USD')
+    const onlyUsdPayments = parsed.payments.length > 0 && parsed.payments.every((payment) => payment.currency === 'USD')
+    const fxRateUsed = hasUsdPayments ? Number(parsed.fx_rate_used ?? 0) : 0
+
+    const planCanjeText = parsed.plan_canje_enabled
+      ? [
+          'PLAN CANJE',
+          `Modelo: ${parsed.trade_model?.trim() || '—'}`,
+          `GB: ${parsed.trade_storage_gb ?? '—'}`,
+          `Color: ${parsed.trade_color?.trim() || '—'}`,
+          `Batería: ${parsed.trade_battery_pct ?? '—'}%`,
+          `Estado: ${parsed.trade_state?.trim() || '—'}`,
+          `IMEI: ${parsed.trade_imei?.trim() || '—'}`,
+          `Valor tomado USD: ${parsed.trade_value_taken_usd ?? 0}`,
+          `Valor reventa USD: ${parsed.trade_resale_usd ?? 0}`,
+          `Enviar a técnico: ${parsed.trade_send_tech ? 'Sí' : 'No'}`,
+          `Observaciones: ${parsed.trade_notes?.trim() || '—'}`,
+        ].join(' | ')
+      : ''
+
+    const mergedDetails = [parsed.details?.trim() || '', planCanjeText].filter(Boolean).join('\n')
+
+    const payload: CreateSalePayload = {
+      sale_date: saleDateIso,
+      seller_id: parsed.seller_id || undefined,
+      customer: {
+        name: parsed.customer_name,
+        phone: parsed.customer_phone,
+        dni: parsed.customer_dni?.trim() || undefined,
+      },
+      payment_method: paymentMethod,
+      card_brand: firstCardPayment?.card_brand?.trim() || null,
+      installments: firstCardPayment?.installments ?? null,
+      surcharge_pct: firstCardPayment?.surcharge_pct ?? null,
+      deposit_ars: parsed.payments
+        .filter((payment) => payment.method === 'deposit')
+        .reduce((sum, payment) => sum + getArsAmount(payment, fxRateUsed), 0),
+      currency: onlyUsdPayments ? 'USD' : 'ARS',
+      fx_rate_used: hasUsdPayments ? fxRateUsed : null,
+      total_usd: onlyUsdPayments && fxRateUsed > 0 ? Number((salePriceArs / fxRateUsed).toFixed(2)) : null,
+      total_ars: salePriceArs,
+      balance_due_ars: balanceDueArs,
+      details: mergedDetails || null,
+      notes: mergedDetails || null,
+      includes_cube_20w: parsed.includes_cube_20w,
+      payments: parsed.payments.map((payment) => ({
+        method: payment.method,
+        currency: payment.currency,
+        amount: Number(payment.amount),
+        card_brand: payment.card_brand?.trim() || null,
+        installments: payment.installments ?? null,
+        surcharge_pct: payment.surcharge_pct ?? null,
+        note: payment.note?.trim() || null,
+      })),
+      items: [
+        {
+          stock_item_id: saleTarget.id,
+          qty: 1,
+          sale_price_ars: salePriceArs,
+        },
+      ],
+    }
+
+    saleMutation.mutate(payload)
   }
 
   return (
@@ -281,7 +622,7 @@ export function POSPage() {
                 </div>
 
                 <div className="mt-4 flex gap-2">
-                  <Button className="flex-1" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
+                  <Button className="flex-1" onClick={() => openSaleModal(item)}>
                     Vender
                   </Button>
                   <Button className="flex-1" variant="secondary" onClick={() => openReserveModal(item)}>
@@ -314,6 +655,255 @@ export function POSPage() {
           </div>
         </div>
       ) : null}
+
+      <Modal
+        open={saleOpen}
+        title="Vender equipo"
+        subtitle={saleTarget ? `${saleTarget.model || 'Equipo'} · IMEI ${saleTarget.imei ?? '—'}` : undefined}
+        onClose={() => {
+          setSaleOpen(false)
+          setSaleTarget(null)
+        }}
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSaleOpen(false)
+                setSaleTarget(null)
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={saleForm.handleSubmit(handleSubmitSale)} disabled={saleMutation.isPending}>
+              {saleMutation.isPending ? 'Guardando...' : 'Guardar venta'}
+            </Button>
+          </>
+        }
+      >
+        {saleTarget ? (
+          <form className="space-y-4" onSubmit={saleForm.handleSubmit(handleSubmitSale)}>
+            <section className="rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5B677A]">Equipo</p>
+              <h3 className="mt-1 text-lg font-semibold text-[#0F172A]">{saleTarget.model || 'Equipo'} · IMEI {saleTarget.imei || '—'}</h3>
+              <p className="mt-1 text-sm text-[#64748B]">Precio base: {formatMoney(saleTarget.sale_price_ars)}</p>
+            </section>
+
+            <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+              <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Datos Generales</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Fecha">
+                  <Input placeholder="DD/MM/AAAA" inputMode="numeric" {...saleForm.register('sale_date')} />
+                </Field>
+                <Field label="Vendedor">
+                  <Select {...saleForm.register('seller_id')}>
+                    <option value="">Seleccionar vendedor</option>
+                    {sellers.map((seller) => (
+                      <option key={seller.id} value={seller.id}>
+                        {seller.full_name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+              <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Cliente</h3>
+              <div className="grid gap-3 md:grid-cols-3">
+                <Field label="Nombre">
+                  <Input {...saleForm.register('customer_name')} />
+                </Field>
+                <Field label="Teléfono">
+                  <Input {...saleForm.register('customer_phone')} />
+                </Field>
+                <Field label="DNI (opcional)">
+                  <Input {...saleForm.register('customer_dni')} />
+                </Field>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-2xl border border-[rgba(234,88,12,0.35)] bg-[rgba(234,88,12,0.06)] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#C2410C]">Plan Canje</h3>
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-[#7C2D12]">
+                  <input type="checkbox" {...saleForm.register('plan_canje_enabled')} />
+                  Activar
+                </label>
+              </div>
+
+              {watchedPlanCanjeEnabled ? (
+                <div className="space-y-3">
+                  <div className="space-y-3 rounded-xl border border-[#E6EBF2] bg-white p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5B677A]">Equipo a tomar</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field label="Modelo">
+                        <Input placeholder="Ej: iPhone 13 Pro" {...saleForm.register('trade_model')} />
+                      </Field>
+                      <Field label="IMEI (opcional)">
+                        <Input placeholder="Opcional" {...saleForm.register('trade_imei')} />
+                      </Field>
+                      <Field label="GB">
+                        <Input type="number" min={1} {...saleForm.register('trade_storage_gb')} />
+                      </Field>
+                      <Field label="Color">
+                        <Input {...saleForm.register('trade_color')} />
+                      </Field>
+                      <Field label="Batería %">
+                        <Input type="number" min={0} max={100} {...saleForm.register('trade_battery_pct')} />
+                      </Field>
+                      <Field label="Estado">
+                        <Input placeholder="Ej: Usado" {...saleForm.register('trade_state')} />
+                      </Field>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-xl border border-[#E6EBF2] bg-white p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#5B677A]">Valorización</p>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field label="Valor tomado (USD)">
+                        <Input type="number" min={0} step="0.01" {...saleForm.register('trade_value_taken_usd')} />
+                      </Field>
+                      <Field label="Valor reventa (USD)">
+                        <Input type="number" min={0} step="0.01" {...saleForm.register('trade_resale_usd')} />
+                      </Field>
+                    </div>
+                  </div>
+
+                  <label className="flex h-11 items-center gap-2 rounded-xl border border-[#E6EBF2] bg-white px-3 text-sm text-[#0F172A]">
+                    <input type="checkbox" {...saleForm.register('trade_send_tech')} />
+                    Enviar a técnico
+                  </label>
+
+                  <Field label="Observaciones adicionales">
+                    <Input placeholder="Observaciones" {...saleForm.register('trade_notes')} />
+                  </Field>
+                </div>
+              ) : null}
+            </section>
+
+            <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Pagos</h3>
+                <Button type="button" size="sm" variant="secondary" onClick={addPayment}>
+                  Agregar pago
+                </Button>
+              </div>
+
+              {payments.map((payment, index) => (
+                <div key={`payment-${index}`} className="space-y-3 rounded-xl border border-[#E6EBF2] bg-white p-3">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <Field label="Método">
+                      <Select value={payment.method} onChange={(event) => updatePayment(index, { method: event.target.value as SaleModalPayment['method'] })}>
+                        <option value="cash">Efectivo</option>
+                        <option value="transfer">Transferencia</option>
+                        <option value="card">Tarjeta</option>
+                        <option value="deposit">Seña</option>
+                      </Select>
+                    </Field>
+                    <Field label="Moneda">
+                      <Select value={payment.currency} onChange={(event) => updatePayment(index, { currency: event.target.value as 'ARS' | 'USD' })}>
+                        <option value="ARS">ARS</option>
+                        <option value="USD">USD</option>
+                      </Select>
+                    </Field>
+                    <Field label="Monto">
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={payment.amount == null ? '' : String(payment.amount)}
+                        onChange={(event) => updatePayment(index, { amount: event.target.value as unknown as number })}
+                      />
+                    </Field>
+                    {payment.method === 'card' ? (
+                      <>
+                        <Field label="Tarjeta">
+                          <Input value={payment.card_brand ?? ''} onChange={(event) => updatePayment(index, { card_brand: event.target.value })} />
+                        </Field>
+                        <Field label="Cuotas">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={payment.installments == null ? '' : String(payment.installments)}
+                            onChange={(event) => updatePayment(index, { installments: asPositiveNumber(event.target.value) ?? null })}
+                          />
+                        </Field>
+                        <Field label="Recargo %">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={payment.surcharge_pct == null ? '' : String(payment.surcharge_pct)}
+                            onChange={(event) => updatePayment(index, { surcharge_pct: asPositiveNumber(event.target.value) ?? null })}
+                          />
+                        </Field>
+                      </>
+                    ) : null}
+                  </div>
+
+                  {payments.length > 1 ? (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => removePayment(index)}>
+                      Quitar pago
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+
+              <Field label="Dólar usado (si hay pagos USD)">
+                <Input type="number" min={0} step="0.01" {...saleForm.register('fx_rate_used')} />
+              </Field>
+            </section>
+
+            <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+              <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Detalle y Total</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Precio venta ARS">
+                  <Input type="number" min={1} {...saleForm.register('sale_price_ars')} />
+                </Field>
+                <Field label="Incluye Cubo 20W">
+                  <label className="flex h-11 items-center gap-2 rounded-xl border border-[#E6EBF2] bg-white px-3 text-sm text-[#0F172A]">
+                    <input type="checkbox" {...saleForm.register('includes_cube_20w')} />
+                    Sí, incluye cubo
+                  </label>
+                </Field>
+              </div>
+
+              <Field label="Detalle libre">
+                <Input placeholder="Detalle de la venta" {...saleForm.register('details')} />
+              </Field>
+
+              <div className="rounded-xl border border-[#D7DCE4] bg-white p-3 text-sm text-[#334155]">
+                <div className="flex items-center justify-between">
+                  <span>Precio producto:</span>
+                  <strong>{formatMoney(salePriceArs)}</strong>
+                </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span>Pagado:</span>
+                  <strong>{formatMoney(paidArs)}</strong>
+                </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span>Saldo pendiente:</span>
+                  <strong>{formatMoney(balanceDueArs)}</strong>
+                </div>
+              </div>
+            </section>
+
+            {Object.keys(saleForm.formState.errors).length > 0 ? (
+              <div className="space-y-1 rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-3 text-xs text-[#991B1B]">
+                {saleForm.formState.errors.sale_date?.message ? <p>{saleForm.formState.errors.sale_date.message}</p> : null}
+                {saleForm.formState.errors.customer_name?.message ? <p>{saleForm.formState.errors.customer_name.message}</p> : null}
+                {saleForm.formState.errors.customer_phone?.message ? <p>{saleForm.formState.errors.customer_phone.message}</p> : null}
+                {saleForm.formState.errors.sale_price_ars?.message ? <p>{saleForm.formState.errors.sale_price_ars.message}</p> : null}
+                {saleForm.formState.errors.fx_rate_used?.message ? <p>{saleForm.formState.errors.fx_rate_used.message}</p> : null}
+                {saleForm.formState.errors.trade_model?.message ? <p>{saleForm.formState.errors.trade_model.message}</p> : null}
+                {saleForm.formState.errors.trade_value_taken_usd?.message ? <p>{saleForm.formState.errors.trade_value_taken_usd.message}</p> : null}
+                {saleForm.formState.errors.payments?.root?.message ? <p>{saleForm.formState.errors.payments.root.message}</p> : null}
+              </div>
+            ) : null}
+          </form>
+        ) : null}
+      </Modal>
 
       <Modal
         open={reserveOpen}
