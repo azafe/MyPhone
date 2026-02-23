@@ -122,7 +122,7 @@ function normalizeDateInput(value: string) {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
 }
 
-function parseDateInputToIso(value: string) {
+function parseDateInputToIsoDate(value: string) {
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim())
   if (!match) return null
 
@@ -138,6 +138,32 @@ function parseDateInputToIso(value: string) {
   const isoDay = String(day).padStart(2, '0')
   const isoMonth = String(month).padStart(2, '0')
   return `${year}-${isoMonth}-${isoDay}`
+}
+
+function parseDateInputToIsoDateTime(value: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim())
+  if (!match) return null
+
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+  if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return null
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+
+  const localDate = new Date(year, month - 1, day, 0, 0, 0, 0)
+  if (
+    localDate.getFullYear() !== year ||
+    localDate.getMonth() !== month - 1 ||
+    localDate.getDate() !== day
+  ) {
+    return null
+  }
+
+  return localDate.toISOString()
+}
+
+function resolveConditionFromState(state: StockState) {
+  return state === 'new' ? 'new' : 'used'
 }
 
 function asPositiveNumber(value: string) {
@@ -157,7 +183,7 @@ const createSchema = z.object({
   received_at: z
     .string()
     .min(1, 'Fecha requerida')
-    .refine((value) => parseDateInputToIso(value) !== null, 'Fecha inválida (DD/MM/AAAA)'),
+    .refine((value) => parseDateInputToIsoDate(value) !== null, 'Fecha inválida (DD/MM/AAAA)'),
   provider_name: z.string().optional(),
   is_promo: z.boolean().default(false),
 })
@@ -329,7 +355,7 @@ export function StockPage() {
 
   const handleCreate = async (values: unknown) => {
     const parsed = createSchema.parse(values)
-    const receivedAtIso = parseDateInputToIso(parsed.received_at)
+    const receivedAtIso = parseDateInputToIsoDateTime(parsed.received_at)
     if (!receivedAtIso) {
       toast.error('Ingresá la fecha en formato DD/MM/AAAA.')
       return
@@ -372,6 +398,7 @@ export function StockPage() {
       state: parsed.state,
       status: parsed.state,
       category: parsed.state,
+      condition: resolveConditionFromState(parsed.state),
       brand: 'Apple',
       model: parsed.model,
       storage_gb: parsed.storage_gb,
