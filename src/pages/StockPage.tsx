@@ -597,7 +597,7 @@ export function StockPage() {
           />
         </label>
         <label className="relative block">
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#64748B]">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]">
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
               <path
                 d="M3 5h18l-7 8v5l-4 2v-7L3 5Z"
@@ -608,7 +608,7 @@ export function StockPage() {
               />
             </svg>
           </span>
-          <Select className="h-12 pl-10" value={stateFilter} onChange={(event) => handleStateFilterChange(event.target.value)}>
+          <Select className="h-12 appearance-none pl-11 pr-10" value={stateFilter} onChange={(event) => handleStateFilterChange(event.target.value)}>
             <option value="">Todos los estados</option>
             {stateOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -616,6 +616,11 @@ export function StockPage() {
               </option>
             ))}
           </Select>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
+              <path d="M7 10l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
         </label>
       </div>
 
