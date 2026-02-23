@@ -272,8 +272,7 @@ export function StockPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [stateFilter, setStateFilter] = useState('')
-  const [modelFilter, setModelFilter] = useState('')
-  const [promoFilter, setPromoFilter] = useState<'all' | 'promo' | 'no_promo'>('all')
+  const [searchFilter, setSearchFilter] = useState('')
   const [page, setPage] = useState(1)
   const [newOpen, setNewOpen] = useState(false)
   const [reserveOpen, setReserveOpen] = useState(false)
@@ -286,12 +285,11 @@ export function StockPage() {
   const [detailPromo, setDetailPromo] = useState(false)
 
   const stockQuery = useQuery({
-    queryKey: ['stock', stateFilter, modelFilter, promoFilter, page, PAGE_SIZE],
+    queryKey: ['stock', stateFilter, searchFilter, page, PAGE_SIZE],
     queryFn: () =>
       fetchStockPage({
         state: stateFilter || undefined,
-        model: modelFilter || undefined,
-        promo: promoFilter === 'all' ? undefined : promoFilter === 'promo',
+        query: searchFilter || undefined,
         page,
         page_size: PAGE_SIZE,
         sort_by: 'received_at',
@@ -317,9 +315,20 @@ export function StockPage() {
 
     return fetchedStock
       .filter((item) => {
-        if (modelFilter && !String(item.model ?? '').toLowerCase().includes(modelFilter.toLowerCase())) return false
-        if (promoFilter === 'promo' && !item.is_promo) return false
-        if (promoFilter === 'no_promo' && item.is_promo) return false
+        const normalizedSearch = searchFilter.trim().toLowerCase()
+        if (normalizedSearch) {
+          const haystack = [
+            String(item.model ?? ''),
+            String(item.imei ?? ''),
+            String(item.provider_name ?? ''),
+            String(item.details ?? ''),
+            String(item.id ?? ''),
+          ]
+            .join(' ')
+            .toLowerCase()
+
+          if (!haystack.includes(normalizedSearch)) return false
+        }
         return true
       })
       .sort((a, b) => {
@@ -327,7 +336,7 @@ export function StockPage() {
         const bDate = new Date(b.received_at ?? b.created_at ?? 0).getTime()
         return bDate - aDate
       })
-  }, [fetchedStock, modelFilter, promoFilter, usingServerPagination])
+  }, [fetchedStock, searchFilter, usingServerPagination])
 
   const totalCount = usingServerPagination
     ? Number(stockQuery.data?.total ?? fetchedStock.length)
@@ -512,13 +521,8 @@ export function StockPage() {
     setPage(1)
   }
 
-  const handleModelFilterChange = (value: string) => {
-    setModelFilter(value)
-    setPage(1)
-  }
-
-  const handlePromoFilterChange = (value: 'all' | 'promo' | 'no_promo') => {
-    setPromoFilter(value)
+  const handleSearchFilterChange = (value: string) => {
+    setSearchFilter(value)
     setPage(1)
   }
 
@@ -572,36 +576,47 @@ export function StockPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#0F172A]">Stock</h2>
-          <p className="text-sm text-[#5B677A]">Vista operativa rápida por estado, modelo, promo e IMEI.</p>
+          <p className="text-sm text-[#5B677A]">Vista operativa rápida por estado y búsqueda de modelo/código/IMEI.</p>
         </div>
         <Button onClick={() => setNewOpen(true)}>Nuevo equipo</Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <Select value={stateFilter} onChange={(event) => handleStateFilterChange(event.target.value)}>
-          <option value="">Estado (todos)</option>
-          {stateOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
-        <Input
-          list="stock-model-suggestions"
-          placeholder="Modelo (ej: iPhone 13 Pro Max)"
-          value={modelFilter}
-          onChange={(event) => handleModelFilterChange(event.target.value)}
-        />
-        <datalist id="stock-model-suggestions">
-          {modelSuggestions.map((model) => (
-            <option key={model} value={model} />
-          ))}
-        </datalist>
-        <Select value={promoFilter} onChange={(event) => handlePromoFilterChange(event.target.value as 'all' | 'promo' | 'no_promo')}>
-          <option value="all">Promo: todos</option>
-          <option value="promo">Solo promo</option>
-          <option value="no_promo">Sin promo</option>
-        </Select>
+      <div className="grid gap-3 md:grid-cols-[1fr_260px]">
+        <label className="relative block">
+          <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-[#94A3B8]">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+              <path d="M20 20L16.65 16.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </span>
+          <Input
+            className="h-12 pl-12 text-base"
+            placeholder="Buscar modelo, código, IMEI..."
+            value={searchFilter}
+            onChange={(event) => handleSearchFilterChange(event.target.value)}
+          />
+        </label>
+        <label className="relative block">
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#64748B]">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden="true">
+              <path
+                d="M3 5h18l-7 8v5l-4 2v-7L3 5Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <Select className="h-12 pl-10" value={stateFilter} onChange={(event) => handleStateFilterChange(event.target.value)}>
+            <option value="">Todos los estados</option>
+            {stateOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </label>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
