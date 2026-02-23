@@ -63,6 +63,17 @@ const iphoneModelSuggestions = [
   'iPhone 16 Pro Max',
 ] as const
 
+type ProductType = 'phone' | 'tablet' | 'laptop' | 'watch' | 'accessory' | 'other'
+
+const productTypeOptions: Array<{ value: ProductType; label: string; disabled: boolean }> = [
+  { value: 'phone', label: 'Teléfono', disabled: false },
+  { value: 'tablet', label: 'Tablet', disabled: true },
+  { value: 'laptop', label: 'Laptop', disabled: true },
+  { value: 'watch', label: 'Reloj', disabled: true },
+  { value: 'accessory', label: 'Accesorio', disabled: true },
+  { value: 'other', label: 'Otro', disabled: true },
+]
+
 const stateLabelMap = stateOptions.reduce(
   (acc, option) => {
     acc[option.value] = option.label
@@ -106,6 +117,61 @@ function formatDate(value?: string | null) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
   return date.toLocaleDateString('es-AR')
+}
+
+function ProductTypeIcon({ type, active }: { type: ProductType; active: boolean }) {
+  const stroke = active ? '#0B4AA2' : '#8A94A7'
+
+  if (type === 'phone') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" aria-hidden="true">
+        <rect x="7" y="2.5" width="10" height="19" rx="2.2" stroke={stroke} strokeWidth="1.8" />
+        <circle cx="12" cy="17.8" r="0.9" fill={stroke} />
+      </svg>
+    )
+  }
+
+  if (type === 'tablet') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" aria-hidden="true">
+        <rect x="5" y="3.5" width="14" height="17" rx="2.2" stroke={stroke} strokeWidth="1.8" />
+        <circle cx="12" cy="17.8" r="0.9" fill={stroke} />
+      </svg>
+    )
+  }
+
+  if (type === 'laptop') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" aria-hidden="true">
+        <rect x="6" y="5" width="12" height="9" rx="1.4" stroke={stroke} strokeWidth="1.8" />
+        <path d="M3.5 17h17" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  if (type === 'watch') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" aria-hidden="true">
+        <rect x="8.2" y="7.2" width="7.6" height="9.6" rx="2.2" stroke={stroke} strokeWidth="1.8" />
+        <path d="M10 3.8h4M10 20.2h4" stroke={stroke} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  if (type === 'accessory') {
+    return (
+      <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" aria-hidden="true">
+        <path d="M6 12a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0v-4Zm6 0a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0" stroke={stroke} strokeWidth="1.8" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" aria-hidden="true">
+      <path d="M12 3 3.5 7.8V16.2L12 21l8.5-4.8V7.8L12 3Z" stroke={stroke} strokeWidth="1.8" />
+      <path d="M3.5 7.8 12 12.6l8.5-4.8" stroke={stroke} strokeWidth="1.8" />
+    </svg>
+  )
 }
 
 function formatDateForInput(date: Date) {
@@ -784,6 +850,32 @@ export function StockPage() {
         }
       >
         <form className="space-y-4" onSubmit={newForm.handleSubmit(handleCreate)}>
+          <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Tipo de Producto</h3>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+              {productTypeOptions.map((option) => {
+                const isActive = option.value === 'phone'
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    disabled={option.disabled}
+                    aria-disabled={option.disabled}
+                    className={[
+                      'flex h-[120px] flex-col items-center justify-center rounded-2xl border-2 px-3 text-center transition',
+                      isActive
+                        ? 'border-[#0B4AA2] bg-[rgba(11,74,162,0.12)] text-[#0B4AA2]'
+                        : 'cursor-not-allowed border-[#D7DCE4] bg-white text-[#8A94A7] opacity-90',
+                    ].join(' ')}
+                  >
+                    <ProductTypeIcon type={option.value} active={isActive} />
+                    <span className="mt-2 text-[22px] font-medium leading-none">{option.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
           <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
             <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Información básica</h3>
             <div className="grid gap-3 md:grid-cols-2">
