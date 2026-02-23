@@ -177,7 +177,8 @@ const createSchema = z.object({
   storage_gb: z.coerce.number().int().min(1, 'GB debe ser mayor a 0'),
   battery_pct: z.coerce.number().min(0, '0 mínimo').max(100, '100 máximo'),
   color: z.string().optional(),
-  sale_price_ars: z.coerce.number().min(1, 'Precio requerido'),
+  sale_price_usd: z.coerce.number().min(1, 'Precio venta USD requerido'),
+  purchase_usd: z.coerce.number().min(1, 'Precio adquisición USD requerido'),
   details: z.string().optional(),
   imei: z.string().min(4, 'IMEI requerido'),
   received_at: z
@@ -196,6 +197,10 @@ const reserveSchema = z.object({
 
 const PAGE_SIZE = 40
 const EMPTY_STOCK_ITEMS: StockItem[] = []
+const DEFAULT_STOCK_USD_RATE = (() => {
+  const candidate = Number(import.meta.env.VITE_STOCK_USD_RATE ?? import.meta.env.VITE_USD_RATE ?? 1445)
+  return Number.isFinite(candidate) && candidate > 0 ? candidate : 1445
+})()
 
 export function StockPage() {
   const navigate = useNavigate()
@@ -282,12 +287,19 @@ export function StockPage() {
       state: 'new',
       battery_pct: 100,
       storage_gb: 128,
-      sale_price_ars: 0,
+      sale_price_usd: 0,
+      purchase_usd: 0,
       received_at: formatDateForInput(new Date()),
       is_promo: false,
     },
   })
   const createReceivedAt = useWatch({ control: newForm.control, name: 'received_at' })
+  const createSalePriceUsd = useWatch({ control: newForm.control, name: 'sale_price_usd' })
+  const salePriceArsPreview = useMemo(() => {
+    const usd = Number(createSalePriceUsd ?? 0)
+    if (!Number.isFinite(usd) || usd <= 0) return null
+    return usd * DEFAULT_STOCK_USD_RATE
+  }, [createSalePriceUsd])
 
   const reserveForm = useForm({
     resolver: zodResolver(reserveSchema),
@@ -309,7 +321,8 @@ export function StockPage() {
         state: 'new',
         battery_pct: 100,
         storage_gb: 128,
-        sale_price_ars: 0,
+        sale_price_usd: 0,
+        purchase_usd: 0,
         received_at: formatDateForInput(new Date()),
         is_promo: false,
       })
@@ -404,7 +417,11 @@ export function StockPage() {
       storage_gb: parsed.storage_gb,
       battery_pct: parsed.battery_pct,
       color: parsed.color?.trim() || null,
-      sale_price_ars: parsed.sale_price_ars,
+      fx_rate_used: DEFAULT_STOCK_USD_RATE,
+      sale_price_usd: parsed.sale_price_usd,
+      purchase_usd: parsed.purchase_usd,
+      sale_price_ars: parsed.sale_price_usd * DEFAULT_STOCK_USD_RATE,
+      purchase_ars: parsed.purchase_usd * DEFAULT_STOCK_USD_RATE,
       details: parsed.details?.trim() || null,
       imei: normalizedImei,
       received_at: receivedAtIso,
@@ -793,9 +810,6 @@ export function StockPage() {
                   ))}
                 </Select>
               </Field>
-              <Field label="Precio ARS">
-                <Input type="number" min={1} {...newForm.register('sale_price_ars')} />
-              </Field>
               <Field label="Promo">
                 <label className="flex h-11 items-center gap-2 rounded-xl border border-[#E6EBF2] bg-white px-3 text-sm text-[#0F172A] shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
                   <input type="checkbox" {...newForm.register('is_promo')} />
@@ -855,12 +869,30 @@ export function StockPage() {
             </div>
           </section>
 
+          <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Precios</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Precio Venta (USD)">
+                <Input type="number" min={1} step="0.01" {...newForm.register('sale_price_usd')} />
+              </Field>
+              <Field label="Precio Adquisición (USD)">
+                <Input type="number" min={1} step="0.01" {...newForm.register('purchase_usd')} />
+              </Field>
+            </div>
+            <p className="text-sm text-[#64748B]">
+              {salePriceArsPreview != null
+                ? `≈ ${formatMoney(salePriceArsPreview)} (cotización $${DEFAULT_STOCK_USD_RATE.toLocaleString('es-AR')})`
+                : `Cotización $${DEFAULT_STOCK_USD_RATE.toLocaleString('es-AR')}`}
+            </p>
+          </section>
+
           {Object.keys(newForm.formState.errors).length > 0 && (
             <div className="space-y-1 rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-3 text-xs text-[#991B1B]">
               {newForm.formState.errors.model?.message && <p>{newForm.formState.errors.model.message}</p>}
               {newForm.formState.errors.storage_gb?.message && <p>{newForm.formState.errors.storage_gb.message}</p>}
               {newForm.formState.errors.battery_pct?.message && <p>{newForm.formState.errors.battery_pct.message}</p>}
-              {newForm.formState.errors.sale_price_ars?.message && <p>{newForm.formState.errors.sale_price_ars.message}</p>}
+              {newForm.formState.errors.sale_price_usd?.message && <p>{newForm.formState.errors.sale_price_usd.message}</p>}
+              {newForm.formState.errors.purchase_usd?.message && <p>{newForm.formState.errors.purchase_usd.message}</p>}
               {newForm.formState.errors.imei?.message && <p>{newForm.formState.errors.imei.message}</p>}
               {newForm.formState.errors.received_at?.message && <p>{newForm.formState.errors.received_at.message}</p>}
             </div>
