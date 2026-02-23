@@ -697,53 +697,80 @@ export function StockPage() {
           </>
         }
       >
-        <form className="grid gap-3 md:grid-cols-2" onSubmit={newForm.handleSubmit(handleCreate)}>
-          <Field label="Estado">
-            <Select {...newForm.register('state')}>
-              {stateOptions.filter((option) => option.value !== 'sold').map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+        <form className="space-y-4" onSubmit={newForm.handleSubmit(handleCreate)}>
+          <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Información básica</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Modelo">
+                <Input list="stock-model-create-suggestions" {...newForm.register('model')} placeholder="Ej: iPhone 13 Pro" />
+              </Field>
+              <Field label="Almacenamiento (GB)">
+                <Input type="number" min={1} {...newForm.register('storage_gb')} />
+              </Field>
+              <Field label="Color">
+                <Input {...newForm.register('color')} placeholder="Ej: Blanco" />
+              </Field>
+              <Field label="Condición">
+                <Select {...newForm.register('state')}>
+                  {stateOptions.filter((option) => option.value !== 'sold').map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Precio ARS">
+                <Input type="number" min={1} {...newForm.register('sale_price_ars')} />
+              </Field>
+              <Field label="Promo">
+                <label className="flex h-11 items-center gap-2 rounded-xl border border-[#E6EBF2] bg-white px-3 text-sm text-[#0F172A] shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
+                  <input type="checkbox" {...newForm.register('is_promo')} />
+                  Marcar promoción
+                </label>
+              </Field>
+            </div>
+            <datalist id="stock-model-create-suggestions">
+              {modelSuggestions.map((model) => (
+                <option key={model} value={model} />
               ))}
-            </Select>
-          </Field>
-          <Field label="Modelo">
-            <Input {...newForm.register('model')} placeholder="iPhone 13" />
-          </Field>
-          <Field label="GB">
-            <Input type="number" min={1} {...newForm.register('storage_gb')} />
-          </Field>
-          <Field label="Batería %">
-            <Input type="number" min={0} max={100} {...newForm.register('battery_pct')} />
-          </Field>
-          <Field label="Color">
-            <Input {...newForm.register('color')} />
-          </Field>
-          <Field label="Precio ARS">
-            <Input type="number" min={1} {...newForm.register('sale_price_ars')} />
-          </Field>
-          <Field label="IMEI">
-            <Input {...newForm.register('imei')} />
-          </Field>
-          <Field label="Fecha ingreso">
-            <Input type="date" {...newForm.register('received_at')} />
-          </Field>
-          <Field label="Proveedor">
-            <Input {...newForm.register('provider_name')} />
-          </Field>
-          <Field label="Promo">
-            <label className="flex h-11 items-center gap-2 rounded-xl border border-[#E6EBF2] px-3 text-sm text-[#0F172A]">
-              <input type="checkbox" {...newForm.register('is_promo')} />
-              Marcar promoción
-            </label>
-          </Field>
-          <div className="md:col-span-2">
-            <Field label="Detalles">
-              <Input {...newForm.register('details')} placeholder="Detalle estético, faltante, etc." />
-            </Field>
-          </div>
+            </datalist>
+          </section>
+
+          <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Identificación</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="IMEI">
+                <Input {...newForm.register('imei')} placeholder="15 dígitos" />
+              </Field>
+            </div>
+          </section>
+
+          <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Detalles de estado</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Batería (%)">
+                <Input type="number" min={0} max={100} {...newForm.register('battery_pct')} />
+              </Field>
+              <Field label="Detalles adicionales">
+                <Input {...newForm.register('details')} placeholder="Detalle estético, faltante, etc." />
+              </Field>
+            </div>
+          </section>
+
+          <section className="space-y-3 rounded-2xl border border-[#E6EBF2] bg-[#F8FAFC] p-4">
+            <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0F172A]">Origen / Compra</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Proveedor">
+                <Input {...newForm.register('provider_name')} placeholder="Proveedor" />
+              </Field>
+              <Field label="Fecha de ingreso">
+                <Input type="date" {...newForm.register('received_at')} />
+              </Field>
+            </div>
+          </section>
+
           {Object.keys(newForm.formState.errors).length > 0 && (
-            <div className="md:col-span-2 space-y-1 rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-3 text-xs text-[#991B1B]">
+            <div className="space-y-1 rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-3 text-xs text-[#991B1B]">
               {newForm.formState.errors.model?.message && <p>{newForm.formState.errors.model.message}</p>}
               {newForm.formState.errors.storage_gb?.message && <p>{newForm.formState.errors.storage_gb.message}</p>}
               {newForm.formState.errors.battery_pct?.message && <p>{newForm.formState.errors.battery_pct.message}</p>}
