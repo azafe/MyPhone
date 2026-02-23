@@ -108,6 +108,38 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString('es-AR')
 }
 
+function formatDateForInput(date: Date) {
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = String(date.getFullYear())
+  return `${day}/${month}/${year}`
+}
+
+function normalizeDateInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
+}
+
+function parseDateInputToIso(value: string) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim())
+  if (!match) return null
+
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+  if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return null
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null
+
+  const isoDay = String(day).padStart(2, '0')
+  const isoMonth = String(month).padStart(2, '0')
+  return `${year}-${isoMonth}-${isoDay}`
+}
+
 function asPositiveNumber(value: string) {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
@@ -122,7 +154,10 @@ const createSchema = z.object({
   sale_price_ars: z.coerce.number().min(1, 'Precio requerido'),
   details: z.string().optional(),
   imei: z.string().min(4, 'IMEI requerido'),
-  received_at: z.string().min(1, 'Fecha requerida'),
+  received_at: z
+    .string()
+    .min(1, 'Fecha requerida')
+    .refine((value) => parseDateInputToIso(value) !== null, 'Fecha inválida (DD/MM/AAAA)'),
   provider_name: z.string().optional(),
   is_promo: z.boolean().default(false),
 })
@@ -222,10 +257,11 @@ export function StockPage() {
       battery_pct: 100,
       storage_gb: 128,
       sale_price_ars: 0,
-      received_at: new Date().toISOString().slice(0, 10),
+      received_at: formatDateForInput(new Date()),
       is_promo: false,
     },
   })
+  const createReceivedAt = useWatch({ control: newForm.control, name: 'received_at' })
 
   const reserveForm = useForm({
     resolver: zodResolver(reserveSchema),
@@ -248,7 +284,7 @@ export function StockPage() {
         battery_pct: 100,
         storage_gb: 128,
         sale_price_ars: 0,
-        received_at: new Date().toISOString().slice(0, 10),
+        received_at: formatDateForInput(new Date()),
         is_promo: false,
       })
     },
@@ -293,6 +329,12 @@ export function StockPage() {
 
   const handleCreate = async (values: unknown) => {
     const parsed = createSchema.parse(values)
+    const receivedAtIso = parseDateInputToIso(parsed.received_at)
+    if (!receivedAtIso) {
+      toast.error('Ingresá la fecha en formato DD/MM/AAAA.')
+      return
+    }
+
     const normalizedImei = parsed.imei.trim()
     const duplicatedImeiInPage = fetchedStock.some(
       (item) => String(item.imei ?? '').trim() !== '' && String(item.imei).trim() === normalizedImei,
@@ -338,7 +380,7 @@ export function StockPage() {
       sale_price_ars: parsed.sale_price_ars,
       details: parsed.details?.trim() || null,
       imei: normalizedImei,
-      received_at: parsed.received_at,
+      received_at: receivedAtIso,
       provider_name: parsed.provider_name?.trim() || null,
       is_promo: parsed.is_promo,
     })
@@ -705,7 +747,12 @@ export function StockPage() {
                 <Input list="stock-model-create-suggestions" {...newForm.register('model')} placeholder="Ej: iPhone 13 Pro" />
               </Field>
               <Field label="Almacenamiento (GB)">
-                <Input type="number" min={1} {...newForm.register('storage_gb')} />
+                <Select {...newForm.register('storage_gb')}>
+                  <option value={64}>64</option>
+                  <option value={128}>128</option>
+                  <option value={256}>256</option>
+                  <option value={512}>512</option>
+                </Select>
               </Field>
               <Field label="Color">
                 <Input {...newForm.register('color')} placeholder="Ej: Blanco" />
@@ -764,7 +811,19 @@ export function StockPage() {
                 <Input {...newForm.register('provider_name')} placeholder="Proveedor" />
               </Field>
               <Field label="Fecha de ingreso">
-                <Input type="date" {...newForm.register('received_at')} />
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="DD/MM/AAAA"
+                  value={createReceivedAt ?? ''}
+                  onChange={(event) => {
+                    newForm.setValue('received_at', normalizeDateInput(event.target.value), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }}
+                />
               </Field>
             </div>
           </section>
