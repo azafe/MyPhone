@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 
 const sections = [
+  { to: '/pos', title: 'POS', description: 'Venta rápida desde inventario para operación de mostrador.' },
   { to: '/stock', title: 'Stock', description: 'Control diario de equipos, estados y promo.' },
   { to: '/sales', title: 'Ventas', description: 'Registro y listado por fecha/vendedor.' },
   { to: '/tradeins', title: 'Permutas', description: 'Ingreso por canje y conversión a stock.' },

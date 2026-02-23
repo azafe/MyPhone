@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 
 const baseNavItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
+  { to: '/pos', label: 'POS', icon: 'pos' },
   { to: '/stock', label: 'Stock', icon: 'box' },
   { to: '/sales', label: 'Ventas', icon: 'sale' },
   { to: '/tradeins', label: 'Permutas', icon: 'swap' },
@@ -38,6 +39,13 @@ const icons: Record<string, ReactNode> = {
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
       <path d="M3.5 7.5L12 3l8.5 4.5L12 12z" />
       <path d="M4 7.5V17l8 4 8-4V7.5" />
+    </svg>
+  ),
+  pos: (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M4 6h16l-1.4 8H5.4L4 6Z" />
+      <circle cx="9" cy="18" r="1.6" />
+      <circle cx="16" cy="18" r="1.6" />
     </svg>
   ),
   sale: (

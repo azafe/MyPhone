@@ -42,6 +42,7 @@ function lazyWithRetry<T extends ComponentType<object>>(loader: () => Promise<{ 
 
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })))
 const DashboardPage = lazyWithRetry(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const POSPage = lazyWithRetry(() => import('./pages/POSPage').then((m) => ({ default: m.POSPage })))
 const StockPage = lazyWithRetry(() => import('./pages/StockPage').then((m) => ({ default: m.StockPage })))
 const SalesPage = lazyWithRetry(() => import('./pages/SalesPage').then((m) => ({ default: m.SalesPage })))
 const SalesNewPage = lazyWithRetry(() => import('./pages/SalesNewPage').then((m) => ({ default: m.SalesNewPage })))
@@ -94,6 +95,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/', element: withSuspense(<Navigate to="/dashboard" replace />) },
           { path: '/dashboard', element: withSuspense(<DashboardPage />) },
+          { path: '/pos', element: withSuspense(<POSPage />) },
           { path: '/stock', element: withSuspense(<StockPage />) },
           { path: '/sales', element: withSuspense(<SalesPage />) },
           { path: '/sales/new', element: withSuspense(<SalesNewPage />) },
