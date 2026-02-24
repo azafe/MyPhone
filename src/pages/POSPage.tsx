@@ -318,11 +318,6 @@ export function POSPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
 
-  const totalArs = useMemo(
-    () => items.reduce((sum, item) => sum + Number(item.sale_price_ars ?? 0), 0),
-    [items],
-  )
-
   const paidArs = useMemo(
     () => payments.reduce((sum, payment) => sum + getArsAmount(payment, fxRate), 0),
     [payments, fxRate],
@@ -490,22 +485,6 @@ export function POSPage() {
         <p className="text-sm text-[#5B677A]">Buscá equipos de stock y vendé rápido desde mostrador.</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className="inline-flex h-11 items-center rounded-xl bg-[#0B4AA2] px-4 text-sm font-semibold text-white"
-        >
-          Minorista
-        </button>
-        <button
-          type="button"
-          disabled
-          className="inline-flex h-11 items-center rounded-xl border border-[#D7DCE4] bg-white px-4 text-sm font-semibold text-[#94A3B8]"
-        >
-          Mayorista
-        </button>
-      </div>
-
       <div className="grid gap-3 md:grid-cols-[1fr_220px]">
         <label className="relative block">
           <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-[#94A3B8]">
@@ -562,7 +541,7 @@ export function POSPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#5B677A]">
-          {items.length} equipos · {formatMoney(totalArs)}
+          {items.length} equipos
         </p>
         <p className="text-xs text-[#64748B]">Venta rápida desde inventario</p>
       </div>
@@ -612,13 +591,12 @@ export function POSPage() {
                 </div>
 
                 <div className="mt-4">
-                  <p className="text-4xl font-semibold leading-none text-[#0B4AA2]">{formatMoney(item.sale_price_ars)}</p>
-                  <p className="mt-1 text-lg text-[#64748B]">{formatMoney(item.sale_price_usd, 'USD')}</p>
+                  <p className="text-[2.05rem] font-semibold leading-none text-[#0B4AA2]">{formatMoney(item.sale_price_ars)}</p>
+                  <p className="mt-1 text-base text-[#64748B]">{formatMoney(item.sale_price_usd, 'USD')}</p>
                 </div>
 
                 <div className="mt-2 text-sm text-[#5B677A]">
                   <p>Ingreso: {formatDate(item.received_at ?? item.created_at)}</p>
-                  <p>Stock: 1</p>
                 </div>
 
                 <div className="mt-4 flex gap-2">
