@@ -657,26 +657,16 @@ export function StockPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${stateBadgeClass[itemState]}`}>
-                          {stateLabelMap[itemState]}
-                        </span>
-                        {item.is_promo ? (
-                          <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#991B1B]">
-                            Promo
-                          </span>
-                        ) : null}
-                        <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-[10px] font-semibold text-[#334155]">
-                          {item.days_in_stock ?? '—'} días
-                        </span>
-                      </div>
-                      <h4 className="mt-1 text-base font-semibold leading-tight text-[#0F172A]">
+                      <h4 className="text-base font-semibold leading-tight text-[#0F172A]">
                         {item.model || 'Equipo sin modelo'}
                       </h4>
                       <p className="truncate text-xs text-[#64748B]">IMEI {item.imei || '—'}</p>
                       <p className="mt-0.5 truncate text-xs text-[#475569]">
                         {item.storage_gb ?? '—'} GB · Bat {typeof item.battery_pct === 'number' ? `${item.battery_pct}%` : '—'} ·{' '}
                         {item.color || 'Sin color'}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-[#64748B]">
+                        Prov: {item.provider_name || '—'}{item.details ? ` · ${item.details}` : ''}
                       </p>
                     </div>
 
@@ -686,9 +676,19 @@ export function StockPage() {
                     </div>
                   </div>
 
-                  <p className="mt-1 truncate text-[11px] text-[#64748B]">
-                    Prov: {item.provider_name || '—'}{item.details ? ` · ${item.details}` : ''}
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${stateBadgeClass[itemState]}`}>
+                      {stateLabelMap[itemState]}
+                    </span>
+                    {item.is_promo ? (
+                      <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#991B1B]">
+                        Promo
+                      </span>
+                    ) : null}
+                    <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-[10px] font-semibold text-[#334155]">
+                      {item.days_in_stock ?? '—'} días
+                    </span>
+                  </div>
 
                   {isSoldLinked ? (
                     <div className="mt-1 rounded-md border border-[rgba(11,74,162,0.2)] bg-[rgba(11,74,162,0.06)] px-2 py-1">
@@ -696,27 +696,6 @@ export function StockPage() {
                       <p className="text-[10px] text-[#1D4E89]">{STOCK_SOLD_LINKED_HELP}</p>
                     </div>
                   ) : null}
-
-                  <div className="mt-2 flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
-                    {!isSoldLinked ? (
-                      <>
-                        <Button size="sm" className="h-8 px-3" onClick={() => navigate(`/sales/new?stock=${item.id}`)}>
-                          Vender
-                        </Button>
-                        <Button size="sm" variant="secondary" className="h-8 px-3" onClick={() => openReserveModal(item)}>
-                          Reservar/Señar
-                        </Button>
-                      </>
-                    ) : null}
-                    {item.sale_id ? (
-                      <Button size="sm" variant="ghost" className="h-8 px-3" onClick={() => navigate(`/sales?sale_id=${item.sale_id}`)}>
-                        Ver venta
-                      </Button>
-                    ) : null}
-                    <Button size="sm" variant="ghost" className="h-8 px-3" onClick={() => openDetailModal(item)}>
-                      Editar
-                    </Button>
-                  </div>
                 </article>
               )
             })}
