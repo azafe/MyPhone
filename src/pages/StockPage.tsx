@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   STOCK_SOLD_LINKED_HELP,
@@ -110,6 +109,27 @@ function resolveState(item: StockItem): StockState {
 function formatMoney(value?: number | null) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '—'
   return `$${value.toLocaleString('es-AR')}`
+}
+
+function formatUsdMoney(value?: number | null) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '—'
+  return `USD $${value.toLocaleString('es-AR')}`
+}
+
+function normalizeArsInput(value: string) {
+  return value.replace(/[^\d.,]/g, '')
+}
+
+function parseArsInput(value: string) {
+  const normalized = value.trim().replace(/\./g, '').replace(',', '.')
+  if (!normalized) return null
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function formatArsInput(value?: number | null) {
+  if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) return ''
+  return value.toLocaleString('es-AR')
 }
 
 function formatDate(value?: string | null) {
@@ -269,7 +289,6 @@ const DEFAULT_STOCK_USD_RATE = (() => {
 })()
 
 export function StockPage() {
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [stateFilter, setStateFilter] = useState('')
   const [searchFilter, setSearchFilter] = useState('')
@@ -510,12 +529,6 @@ export function StockPage() {
     reserveMutation.mutate({ id: reserveTarget.id, payload: reserveSchema.parse(values) })
   }
 
-  const openReserveModal = (item: StockItem) => {
-    setReserveTarget(item)
-    reserveForm.reset({ reserve_type: 'reserva', reserve_amount_ars: null, reserve_notes: '' })
-    setReserveOpen(true)
-  }
-
   const handleStateFilterChange = (value: string) => {
     setStateFilter(value)
     setPage(1)
@@ -529,7 +542,7 @@ export function StockPage() {
   const openDetailModal = (item: StockItem) => {
     setDetailTarget(item)
     setDetailState(resolveState(item))
-    setDetailPrice(item.sale_price_ars != null ? String(item.sale_price_ars) : '')
+    setDetailPrice(formatArsInput(item.sale_price_ars))
     setDetailProvider(item.provider_name ?? '')
     setDetailDetails(item.details ?? '')
     setDetailPromo(Boolean(item.is_promo))
@@ -538,6 +551,56 @@ export function StockPage() {
   const closeDetailModal = () => {
     setDetailTarget(null)
   }
+
+  const detailPriceParsed = useMemo(() => parseArsInput(detailPrice), [detailPrice])
+  const detailSaleArs = useMemo(() => {
+    if (detailPriceParsed != null) return detailPriceParsed
+    if (!detailTarget) return null
+    return typeof detailTarget.sale_price_ars === 'number' && Number.isFinite(detailTarget.sale_price_ars)
+      ? detailTarget.sale_price_ars
+      : null
+  }, [detailPriceParsed, detailTarget])
+
+  const detailPurchaseArs = useMemo(() => {
+    if (!detailTarget) return null
+    if (typeof detailTarget.purchase_ars === 'number' && Number.isFinite(detailTarget.purchase_ars)) return detailTarget.purchase_ars
+    if (
+      typeof detailTarget.purchase_usd === 'number' &&
+      Number.isFinite(detailTarget.purchase_usd) &&
+      typeof detailTarget.fx_rate_used === 'number' &&
+      Number.isFinite(detailTarget.fx_rate_used)
+    ) {
+      return detailTarget.purchase_usd * detailTarget.fx_rate_used
+    }
+    return null
+  }, [detailTarget])
+
+  const detailMarginArs = useMemo(() => {
+    if (detailSaleArs == null || detailPurchaseArs == null) return null
+    return detailSaleArs - detailPurchaseArs
+  }, [detailPurchaseArs, detailSaleArs])
+
+  const detailMarginPct = useMemo(() => {
+    if (detailMarginArs == null || detailPurchaseArs == null || detailPurchaseArs <= 0) return null
+    return (detailMarginArs / detailPurchaseArs) * 100
+  }, [detailMarginArs, detailPurchaseArs])
+
+  const detailHasChanges = useMemo(() => {
+    if (!detailTarget) return false
+    const baseState = resolveState(detailTarget)
+    const basePrice = typeof detailTarget.sale_price_ars === 'number' ? detailTarget.sale_price_ars : null
+    const baseProvider = (detailTarget.provider_name ?? '').trim()
+    const baseDetails = (detailTarget.details ?? '').trim()
+    const basePromo = Boolean(detailTarget.is_promo)
+
+    return (
+      detailState !== baseState ||
+      detailPriceParsed !== basePrice ||
+      detailProvider.trim() !== baseProvider ||
+      detailDetails.trim() !== baseDetails ||
+      detailPromo !== basePromo
+    )
+  }, [detailDetails, detailPriceParsed, detailPromo, detailProvider, detailState, detailTarget])
 
   const handleSaveDetail = () => {
     if (!detailTarget) return
@@ -553,8 +616,8 @@ export function StockPage() {
       return
     }
 
-    const normalizedPrice = Number(String(detailPrice).replace(',', '.'))
-    if (!Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
+    const normalizedPrice = parseArsInput(detailPrice)
+    if (normalizedPrice == null || normalizedPrice <= 0) {
       toast.error('Ingresá un precio válido mayor a 0.')
       return
     }
@@ -738,7 +801,7 @@ export function StockPage() {
               Cerrar
             </Button>
             {detailTarget ? (
-              <Button onClick={handleSaveDetail} disabled={detailMutation.isPending}>
+              <Button onClick={handleSaveDetail} disabled={detailMutation.isPending || !detailHasChanges}>
                 {detailMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
               </Button>
             ) : null}
@@ -747,6 +810,28 @@ export function StockPage() {
       >
         {detailTarget ? (
           <div className="space-y-4">
+            <section className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-lg font-semibold text-[#0F172A]">{detailTarget.model || 'Equipo'}</h3>
+                  <p className="text-xs text-[#64748B]">IMEI {detailTarget.imei || '—'}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${stateBadgeClass[resolveState(detailTarget)]}`}>
+                    {stateLabelMap[resolveState(detailTarget)]}
+                  </span>
+                  {detailTarget.is_promo ? (
+                    <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#991B1B]">
+                      Promo
+                    </span>
+                  ) : null}
+                  <span className="rounded-full bg-[#EEF2F7] px-2 py-0.5 text-[10px] font-semibold text-[#334155]">
+                    {detailTarget.days_in_stock ?? '—'} días
+                  </span>
+                </div>
+              </div>
+            </section>
+
             {isStockItemSoldOrLinked(detailTarget) ? (
               <div className="rounded-lg border border-[rgba(11,74,162,0.2)] bg-[rgba(11,74,162,0.06)] px-3 py-2">
                 <p className="text-sm font-semibold text-[#0B4AA2]">{STOCK_SOLD_LINKED_LABEL}</p>
@@ -754,6 +839,35 @@ export function StockPage() {
               </div>
             ) : null}
 
+            <section className="space-y-2 rounded-xl border border-[#E6EBF2] bg-white p-3">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#5B677A]">Resumen financiero</h3>
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="rounded-lg border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Venta ARS</p>
+                  <p className="text-lg font-semibold text-[#0F172A]">{formatMoney(detailSaleArs)}</p>
+                </div>
+                <div className="rounded-lg border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Venta USD</p>
+                  <p className="text-lg font-semibold text-[#0F172A]">{formatUsdMoney(detailTarget.sale_price_usd)}</p>
+                </div>
+                <div className="rounded-lg border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Costo adquisición</p>
+                  <p className="text-lg font-semibold text-[#0F172A]">{formatMoney(detailPurchaseArs)}</p>
+                </div>
+                <div className="rounded-lg border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#64748B]">Margen estimado</p>
+                  <p className={`text-lg font-semibold ${detailMarginArs != null && detailMarginArs < 0 ? 'text-[#B91C1C]' : 'text-[#166534]'}`}>
+                    {formatMoney(detailMarginArs)}
+                    {detailMarginPct != null ? (
+                      <span className="ml-1 text-xs font-medium text-[#64748B]">({detailMarginPct.toFixed(1)}%)</span>
+                    ) : null}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-xl border border-[#E6EBF2] bg-white p-3">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#5B677A]">Edición rápida</h3>
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="Estado">
                 <Select
@@ -771,9 +885,10 @@ export function StockPage() {
               <Field label="Precio ARS">
                 <Input
                   type="text"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   value={detailPrice}
-                  onChange={(event) => setDetailPrice(event.target.value)}
+                  onChange={(event) => setDetailPrice(normalizeArsInput(event.target.value))}
+                  placeholder="Ej: 722500"
                 />
               </Field>
               <Field label="Proveedor">
@@ -791,10 +906,12 @@ export function StockPage() {
                 </label>
               </Field>
             </div>
+            <p className="text-xs text-[#64748B]">Vista previa precio: {formatMoney(detailPriceParsed)}</p>
 
             <Field label="Detalle">
               <Input value={detailDetails} onChange={(event) => setDetailDetails(event.target.value)} />
             </Field>
+            </section>
 
             <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3 text-xs text-[#64748B]">
               <p>
@@ -803,31 +920,7 @@ export function StockPage() {
               </p>
               <p>Ingreso: {formatDate(detailTarget.received_at ?? detailTarget.created_at)}</p>
             </div>
-
-            <div className="flex flex-wrap gap-2">
-              {!isStockItemSoldOrLinked(detailTarget) ? (
-                <>
-                  <Button size="sm" onClick={() => navigate(`/sales/new?stock=${detailTarget.id}`)}>
-                    Vender
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      closeDetailModal()
-                      openReserveModal(detailTarget)
-                    }}
-                  >
-                    Reservar/Señar
-                  </Button>
-                </>
-              ) : null}
-              {detailTarget.sale_id ? (
-                <Button size="sm" variant="ghost" onClick={() => navigate(`/sales?sale_id=${detailTarget.sale_id}`)}>
-                  Ver venta
-                </Button>
-              ) : null}
-            </div>
+            {!detailHasChanges ? <p className="text-xs text-[#64748B]">Sin cambios pendientes.</p> : null}
           </div>
         ) : null}
       </Modal>
