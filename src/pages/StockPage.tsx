@@ -10,6 +10,7 @@ import {
   STOCK_PROMO_BLOCKED_MESSAGE,
   canToggleStockPromo,
   createStockItem,
+  fetchImeiHistory,
   fetchStockPage,
   isStockItemSoldOrLinked,
   reserveStockItem,
@@ -137,6 +138,16 @@ function formatDate(value?: string | null) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
   return date.toLocaleDateString('es-AR')
+}
+
+function formatPaymentMethod(value?: string | null) {
+  const normalized = String(value ?? '').toLowerCase()
+  if (normalized === 'cash') return 'Efectivo'
+  if (normalized === 'transfer') return 'Transferencia'
+  if (normalized === 'card') return 'Tarjeta'
+  if (normalized === 'mixed') return 'Mixto'
+  if (normalized === 'trade_in') return 'Permuta'
+  return value || '—'
 }
 
 function ProductTypeIcon({ type, active }: { type: ProductType; active: boolean }) {
@@ -302,6 +313,7 @@ export function StockPage() {
   const [detailProvider, setDetailProvider] = useState('')
   const [detailDetails, setDetailDetails] = useState('')
   const [detailPromo, setDetailPromo] = useState(false)
+  const detailImei = (detailTarget?.imei ?? '').trim()
 
   const stockQuery = useQuery({
     queryKey: ['stock', stateFilter, searchFilter, page, PAGE_SIZE],
@@ -314,6 +326,12 @@ export function StockPage() {
         sort_by: 'received_at',
         sort_dir: 'desc',
       }),
+  })
+
+  const imeiHistoryQuery = useQuery({
+    queryKey: ['stock', 'imei-history', detailImei],
+    queryFn: () => fetchImeiHistory(detailImei),
+    enabled: Boolean(detailTarget && detailImei),
   })
 
   const fetchedStock = stockQuery.data?.items ?? EMPTY_STOCK_ITEMS
@@ -838,6 +856,48 @@ export function StockPage() {
                 <p className="text-xs text-[#1D4E89]">{STOCK_SOLD_LINKED_HELP}</p>
               </div>
             ) : null}
+
+            <section className="space-y-2 rounded-xl border border-[#E6EBF2] bg-white p-3">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#5B677A]">Trazabilidad IMEI</h3>
+              {!detailImei ? (
+                <p className="text-sm text-[#64748B]">Este equipo no tiene IMEI registrado.</p>
+              ) : imeiHistoryQuery.isLoading ? (
+                <p className="text-sm text-[#64748B]">Cargando historial de ventas...</p>
+              ) : imeiHistoryQuery.error ? (
+                <p className="text-sm text-[#B91C1C]">
+                  No se pudo cargar historial IMEI: {(imeiHistoryQuery.error as Error).message}
+                </p>
+              ) : (imeiHistoryQuery.data?.sales.length ?? 0) === 0 ? (
+                <p className="text-sm text-[#64748B]">Sin ventas asociadas para este IMEI.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {imeiHistoryQuery.data?.sales.map((sale) => (
+                    <li key={`${sale.sale_id}-${sale.sale_item_id ?? 'row'}`} className="rounded-lg border border-[#E6EBF2] bg-[#F8FAFC] px-3 py-2">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-[#0F172A]">Venta {sale.sale_id.slice(0, 8)}</p>
+                          <p className="text-xs text-[#64748B]">
+                            {formatDate(sale.sale_date)} · {sale.sale_status || '—'} · {formatPaymentMethod(sale.payment_method)}
+                          </p>
+                          <p className="text-xs text-[#64748B]">
+                            Cliente: {sale.customer_name || '—'} {sale.customer_phone ? `· ${sale.customer_phone}` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-[#0F172A]">{formatMoney(sale.subtotal_ars ?? sale.sale_total_ars)}</p>
+                          <a
+                            href={`/sales?sale_id=${encodeURIComponent(sale.sale_id)}`}
+                            className="text-xs font-semibold text-[#0B4AA2] hover:underline"
+                          >
+                            Ver venta
+                          </a>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
             <section className="space-y-2 rounded-xl border border-[#E6EBF2] bg-white p-3">
               <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#5B677A]">Resumen financiero</h3>

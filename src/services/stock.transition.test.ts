@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   STOCK_CONFLICT_MESSAGE,
+  STOCK_DELETE_BLOCKED_MESSAGE,
   STOCK_PROMO_BLOCKED_MESSAGE,
   canChangeStockState,
   canToggleStockPromo,
+  deleteStockItem,
   isStockItemSoldOrLinked,
   resolveStockMutationErrorMessage,
   runStockStateTransitionGuard,
@@ -54,5 +56,12 @@ describe('stock sold transition guard', () => {
     const soldLinkedItem = buildItem({ state: 'sold', status: 'sold', sale_id: 'sale-xyz' })
     expect(canToggleStockPromo(soldLinkedItem)).toBe(false)
     expect(STOCK_PROMO_BLOCKED_MESSAGE).toContain('promo')
+  })
+
+  it('blocks delete stock operation at client layer', async () => {
+    await expect(deleteStockItem('stock-123')).rejects.toMatchObject({
+      message: STOCK_DELETE_BLOCKED_MESSAGE,
+      code: 'stock_delete_blocked',
+    })
   })
 })

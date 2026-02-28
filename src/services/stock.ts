@@ -1,4 +1,4 @@
-import type { StockItem, StockState } from '../types'
+import type { StockImeiHistory, StockImeiSaleHistory, StockItem, StockState } from '../types'
 import { asArray, asObject, toQueryString } from './normalizers'
 import { requestFirstAvailable } from './request'
 
@@ -37,6 +37,7 @@ export const STOCK_SOLD_LINKED_LABEL = 'Vendido (vinculado a venta)'
 export const STOCK_SOLD_LINKED_HELP = 'Para revertir, cancelar la venta o reingresar el equipo.'
 export const STOCK_CONFLICT_MESSAGE = 'El equipo ya está vendido y no puede cambiarse desde stock. Cancelá la venta o reingresalo.'
 export const STOCK_PROMO_BLOCKED_MESSAGE = 'El equipo ya está vendido y no puede marcarse como promo.'
+export const STOCK_DELETE_BLOCKED_MESSAGE = 'No se puede eliminar un equipo. Cambiá su estado para mantener trazabilidad.'
 
 function parseNumber(value: unknown) {
   const parsed = Number(value)
@@ -290,6 +291,34 @@ function normalizeStockObject(response: unknown): StockItem {
   return normalizeStockItem(raw)
 }
 
+function normalizeStockImeiSaleHistory(raw: Record<string, unknown>): StockImeiSaleHistory {
+  return {
+    sale_item_id: asOptionalString(raw.sale_item_id) ?? undefined,
+    sale_id: String(raw.sale_id ?? ''),
+    sale_date: asOptionalString(raw.sale_date),
+    sale_status: asOptionalString(raw.sale_status),
+    sale_total_ars: parseNumber(raw.sale_total_ars),
+    payment_method: asOptionalString(raw.payment_method),
+    qty: parseNumber(raw.qty),
+    sale_price_ars: parseNumber(raw.sale_price_ars),
+    subtotal_ars: parseNumber(raw.subtotal_ars),
+    customer_name: asOptionalString(raw.customer_name),
+    customer_phone: asOptionalString(raw.customer_phone),
+  }
+}
+
+function normalizeStockImeiHistory(response: unknown): StockImeiHistory {
+  const raw = asObject<Record<string, unknown>>(response)
+  const salesRaw = asArray<Record<string, unknown>>(raw.sales)
+
+  return {
+    imei: String(raw.imei ?? ''),
+    stock_item: normalizeStockItem(asObject<Record<string, unknown>>(raw.stock_item)),
+    sales: salesRaw.map(normalizeStockImeiSaleHistory),
+    sales_count: parsePositiveInt(raw.sales_count) ?? salesRaw.length,
+  }
+}
+
 function applyStateFilter(items: StockItem[], state?: string) {
   if (!state) return items
   return items.filter((item) => item.state === state)
@@ -354,6 +383,19 @@ export async function fetchStockPage(filters: StockFilters = {}): Promise<StockP
   return normalizeStockPageResponse(response, requestedPage, requestedPageSize)
 }
 
+export async function fetchImeiHistory(imei: string): Promise<StockImeiHistory> {
+  const normalizedImei = imei.trim()
+  if (!normalizedImei) {
+    throw new Error('IMEI requerido para consultar historial')
+  }
+
+  const encodedImei = encodeURIComponent(normalizedImei)
+  const response = await requestFirstAvailable<unknown>(
+    STOCK_ENDPOINTS.map((endpoint) => `${endpoint}/imei/${encodedImei}/history`),
+  )
+  return normalizeStockImeiHistory(response)
+}
+
 export async function createStockItem(payload: Partial<StockItem>) {
   const wirePayload = toLegacyPayload(payload)
   const response = await requestFirstAvailable<unknown>(STOCK_ENDPOINTS, {
@@ -413,7 +455,8 @@ export async function reserveStockItem(
 }
 
 export async function deleteStockItem(id: string) {
-  return requestFirstAvailable<unknown>(STOCK_ENDPOINTS.map((endpoint) => `${endpoint}/${id}`), {
-    method: 'DELETE',
-  })
+  const blockedError = new Error(STOCK_DELETE_BLOCKED_MESSAGE) as Error & { code?: string; details?: unknown }
+  blockedError.code = 'stock_delete_blocked'
+  blockedError.details = { id }
+  throw blockedError
 }

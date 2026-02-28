@@ -76,6 +76,27 @@ export type StockItem = {
   updated_at?: string
 }
 
+export type StockImeiSaleHistory = {
+  sale_item_id?: string
+  sale_id: string
+  sale_date?: string | null
+  sale_status?: string | null
+  sale_total_ars?: number | null
+  payment_method?: string | null
+  qty?: number | null
+  sale_price_ars?: number | null
+  subtotal_ars?: number | null
+  customer_name?: string | null
+  customer_phone?: string | null
+}
+
+export type StockImeiHistory = {
+  imei: string
+  stock_item: StockItem
+  sales: StockImeiSaleHistory[]
+  sales_count?: number
+}
+
 export type Sale = {
   id: string
   sale_date?: string | null
