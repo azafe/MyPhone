@@ -72,7 +72,7 @@ const schema = z
       .regex(/^\d{2}\/\d{2}\/\d{4}$/, 'Formato DD/MM/AAAA'),
     seller_id: z.string().optional(),
     customer_name: z.string().min(1, 'Nombre requerido'),
-    customer_phone: z.string().min(1, 'Teléfono requerido'),
+    customer_phone: z.string().optional(),
     customer_dni: z.string().optional(),
     fx_rate_used: z.coerce.number().optional().nullable(),
     details: z.string().optional(),
@@ -374,7 +374,7 @@ export function SalesNewPage() {
       seller_id: parsed.seller_id || undefined,
       customer: {
         name: parsed.customer_name,
-        phone: parsed.customer_phone,
+        phone: parsed.customer_phone?.trim() || undefined,
         dni: parsed.customer_dni?.trim() || undefined,
       },
       payment_method: paymentMethod,
