@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AUTH_TOKEN_STORAGE_KEY } from '../lib/apiClient'
 import { fetchAuthMe, loginWithPassword } from '../services/auth'
 import type { AuthUser } from '../types'
@@ -11,6 +11,7 @@ type AuthContextValue = {
   user: AuthUser | null
   profile: AuthUser | null
   signIn: (credentials: { email: string; password: string }) => Promise<void>
+  signInWithToken: (payload: { token: string; user?: AuthUser | null; fallbackEmail?: string }) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -71,6 +72,16 @@ function shouldDropSession(error: unknown) {
   )
 }
 
+function fallbackUserFromEmail(email?: string | null): AuthUser {
+  const safeEmail = (email ?? '').trim() || 'usuario@myphone.local'
+  return {
+    id: 'me',
+    email: safeEmail,
+    full_name: safeEmail,
+    role: 'seller',
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const stored = useMemo(() => readStoredAuth(), [])
   const [loading, setLoading] = useState(Boolean(stored.token))
@@ -113,6 +124,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [stored.user, token])
 
+  const signInWithToken = useCallback(
+    async ({
+      token: rawToken,
+      user: initialUser,
+      fallbackEmail,
+    }: {
+      token: string
+      user?: AuthUser | null
+      fallbackEmail?: string
+    }) => {
+      const nextToken = sanitizeToken(rawToken)
+      if (!nextToken) {
+        throw new Error('Login sin token válido')
+      }
+
+      setLoading(true)
+      setToken(nextToken)
+
+      let nextUser = initialUser ?? null
+      if (nextUser) {
+        setUser(nextUser)
+      }
+
+      persistAuth(nextToken, nextUser)
+
+      if (!nextUser) {
+        try {
+          nextUser = await fetchAuthMe()
+        } catch {
+          nextUser = fallbackUserFromEmail(fallbackEmail)
+        }
+      }
+
+      persistAuth(nextToken, nextUser)
+      setUser(nextUser)
+    },
+    [],
+  )
+
   const value = useMemo<AuthContextValue>(
     () => ({
       loading,
@@ -122,38 +172,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile: user,
       signIn: async (credentials) => {
         const response = await loginWithPassword(credentials)
-        const nextToken = sanitizeToken(response.token)
-        if (!nextToken) {
-          throw new Error('Login sin token válido')
-        }
-
-        setLoading(true)
-        // Persist token first so any subsequent request (e.g. /auth/me) already sends Bearer.
-        setToken(nextToken)
-
-        let nextUser = response.user
-        if (nextUser) {
-          setUser(nextUser)
-        }
-
-        persistAuth(nextToken, nextUser)
-
-        if (!nextUser) {
-          try {
-            nextUser = await fetchAuthMe()
-          } catch {
-            nextUser = {
-              id: 'me',
-              email: credentials.email,
-              full_name: credentials.email,
-              role: 'seller',
-            }
-          }
-        }
-
-        persistAuth(nextToken, nextUser)
-        setUser(nextUser)
+        await signInWithToken({
+          token: response.token,
+          user: response.user,
+          fallbackEmail: credentials.email,
+        })
       },
+      signInWithToken,
       signOut: async () => {
         clearStoredAuth()
         setToken(null)
@@ -161,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false)
       },
     }),
-    [loading, token, user],
+    [loading, signInWithToken, token, user],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

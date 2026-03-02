@@ -1,9 +1,23 @@
+import {
+  browserSupportsWebAuthn,
+  startAuthentication,
+  startRegistration,
+  type AuthenticationResponseJSON,
+  type PublicKeyCredentialCreationOptionsJSON,
+  type PublicKeyCredentialRequestOptionsJSON,
+  type RegistrationResponseJSON,
+} from '@simplewebauthn/browser'
 import type { AuthUser } from '../types'
 import { requestFirstAvailable } from './request'
 
 type LoginResponse = {
   token: string
   user: AuthUser | null
+}
+
+type PasskeyOptionsResponse<TOptions> = {
+  challenge_id: string
+  options: TOptions
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -86,6 +100,46 @@ function pickUser(payload: Record<string, unknown>): AuthUser | null {
   return normalizeUser(data.profile) ?? normalizeUser(data)
 }
 
+function ensurePasskeySupported() {
+  if (!browserSupportsWebAuthn()) {
+    throw new Error('Este dispositivo no soporta Face ID / Passkeys')
+  }
+}
+
+function parsePasskeyOptions<TOptions>(payload: unknown): PasskeyOptionsResponse<TOptions> {
+  const body = asObject(payload)
+  if (!body) {
+    throw new Error('Respuesta inválida del servidor de passkeys')
+  }
+
+  const challengeId = pickString(body.challenge_id)
+  const options = body.options as TOptions | undefined
+
+  if (!challengeId || !options || typeof options !== 'object') {
+    throw new Error('Opciones de passkey incompletas')
+  }
+
+  return {
+    challenge_id: challengeId,
+    options,
+  }
+}
+
+function mapPasskeyError(error: unknown, fallback: string) {
+  const err = error as Error & { name?: string }
+  const name = String(err?.name ?? '')
+
+  if (name === 'NotAllowedError') {
+    return 'Operación cancelada. Volvé a intentar Face ID.'
+  }
+
+  if (name === 'InvalidStateError') {
+    return 'La credencial ya está registrada en este dispositivo.'
+  }
+
+  return err?.message || fallback
+}
+
 export async function loginWithPassword(payload: { email: string; password: string }): Promise<LoginResponse> {
   const response = await requestFirstAvailable<unknown>(['/api/auth/login'], {
     method: 'POST',
@@ -107,6 +161,88 @@ export async function loginWithPassword(payload: { email: string; password: stri
     token,
     user: pickUser(body),
   }
+}
+
+export function supportsPasskeyLogin() {
+  return browserSupportsWebAuthn()
+}
+
+export async function loginWithPasskey(emailRaw: string): Promise<LoginResponse> {
+  ensurePasskeySupported()
+
+  const email = emailRaw.trim().toLowerCase()
+  if (!email) {
+    throw new Error('Ingresá tu email para usar Face ID')
+  }
+
+  const optionsResponse = await requestFirstAvailable<unknown>(['/api/auth/passkeys/login/options'], {
+    method: 'POST',
+    body: { email },
+    auth: false,
+  })
+
+  const loginOptions = parsePasskeyOptions<PublicKeyCredentialRequestOptionsJSON>(optionsResponse)
+
+  let assertion: AuthenticationResponseJSON
+  try {
+    assertion = await startAuthentication({
+      optionsJSON: loginOptions.options,
+    })
+  } catch (error) {
+    throw new Error(mapPasskeyError(error, 'No se pudo completar la autenticación con Face ID'))
+  }
+
+  const verifyResponse = await requestFirstAvailable<unknown>(['/api/auth/passkeys/login/verify'], {
+    method: 'POST',
+    body: {
+      challenge_id: loginOptions.challenge_id,
+      response: assertion,
+    },
+    auth: false,
+  })
+
+  const body = asObject(verifyResponse)
+  if (!body) {
+    throw new Error('Respuesta inválida de login con Face ID')
+  }
+
+  const token = pickToken(body)
+  if (!token) {
+    throw new Error('Login con Face ID sin token')
+  }
+
+  return {
+    token,
+    user: pickUser(body),
+  }
+}
+
+export async function registerPasskeyForCurrentSession() {
+  ensurePasskeySupported()
+
+  const optionsResponse = await requestFirstAvailable<unknown>(['/api/auth/passkeys/register/options'], {
+    method: 'POST',
+    body: {},
+  })
+
+  const registerOptions = parsePasskeyOptions<PublicKeyCredentialCreationOptionsJSON>(optionsResponse)
+
+  let attestation: RegistrationResponseJSON
+  try {
+    attestation = await startRegistration({
+      optionsJSON: registerOptions.options,
+    })
+  } catch (error) {
+    throw new Error(mapPasskeyError(error, 'No se pudo activar Face ID'))
+  }
+
+  await requestFirstAvailable(['/api/auth/passkeys/register/verify'], {
+    method: 'POST',
+    body: {
+      challenge_id: registerOptions.challenge_id,
+      response: attestation,
+    },
+  })
 }
 
 export async function fetchAuthMe(): Promise<AuthUser> {

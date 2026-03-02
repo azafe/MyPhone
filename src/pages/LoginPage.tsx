@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth'
+import { loginWithPasskey, registerPasskeyForCurrentSession, supportsPasskeyLogin } from '../services/auth'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Field } from '../components/ui/Field'
@@ -19,8 +20,11 @@ type FormValues = z.infer<typeof schema>
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const { signIn } = useAuth()
+  const { signIn, signInWithToken } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
+  const [registerPasskeyLoading, setRegisterPasskeyLoading] = useState(false)
+  const passkeySupported = supportsPasskeyLogin()
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -41,6 +45,54 @@ export function LoginPage() {
       toast.error(err.message || 'No se pudo iniciar sesión')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePasskeyLogin = async () => {
+    const email = form.getValues('email').trim()
+    if (!email) {
+      toast.error('Ingresá tu email para usar Face ID')
+      return
+    }
+
+    try {
+      setPasskeyLoading(true)
+      const response = await loginWithPasskey(email)
+      await signInWithToken({
+        token: response.token,
+        user: response.user,
+        fallbackEmail: email,
+      })
+      toast.success('Ingreso con Face ID exitoso')
+      navigate('/stock')
+    } catch (error) {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo iniciar con Face ID')
+    } finally {
+      setPasskeyLoading(false)
+    }
+  }
+
+  const handleEnablePasskey = async () => {
+    const values = form.getValues()
+    const parsed = schema.safeParse(values)
+    if (!parsed.success) {
+      form.trigger(['email', 'password'])
+      toast.error('Completá email y password para activar Face ID')
+      return
+    }
+
+    try {
+      setRegisterPasskeyLoading(true)
+      await signIn(parsed.data)
+      await registerPasskeyForCurrentSession()
+      toast.success('Face ID activado para próximos ingresos')
+      navigate('/stock')
+    } catch (error) {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo activar Face ID')
+    } finally {
+      setRegisterPasskeyLoading(false)
     }
   }
 
@@ -72,6 +124,30 @@ export function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Ingresando...' : 'Entrar'}
             </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              disabled={!passkeySupported || passkeyLoading || loading || registerPasskeyLoading}
+              onClick={handlePasskeyLogin}
+            >
+              {passkeyLoading ? 'Validando Face ID...' : 'Entrar con Face ID'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              disabled={!passkeySupported || registerPasskeyLoading || loading || passkeyLoading}
+              onClick={handleEnablePasskey}
+            >
+              {registerPasskeyLoading ? 'Activando Face ID...' : 'Activar Face ID (una sola vez)'}
+            </Button>
+
+            {!passkeySupported && (
+              <p className="text-xs text-[#64748B]">Este dispositivo no soporta Passkeys / Face ID.</p>
+            )}
           </form>
         </div>
       </div>
