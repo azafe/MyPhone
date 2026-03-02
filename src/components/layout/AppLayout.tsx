@@ -1,6 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '../../lib/utils'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import logo from '../../assets/myphone.png'
 import { UserMenu } from './UserMenu'
 import { useAuth } from '../../hooks/useAuth'
@@ -113,6 +113,8 @@ const icons: Record<string, ReactNode> = {
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false)
+  const [hasScrolled, setHasScrolled] = useState(false)
+  const location = useLocation()
   const { profile } = useAuth()
   const role = String(profile?.role ?? '').toLowerCase()
   const isAdmin = role === 'admin' || role === 'owner'
@@ -120,13 +122,58 @@ export function AppLayout() {
   const bottomNavItems = isAdmin
     ? [...baseBottomNavItems.slice(0, 4), { to: '/finance', label: 'Finance', icon: 'chart' }]
     : baseBottomNavItems
+  const mobileSectionTitle = useMemo(() => {
+    const path = location.pathname
+
+    const routeTitles = [
+      { path: '/sales/new', title: 'Nueva venta' },
+      { path: '/dashboard', title: 'Dashboard' },
+      { path: '/pos', title: 'POS' },
+      { path: '/stock', title: 'Stock' },
+      { path: '/sales', title: 'Ventas' },
+      { path: '/tradeins', title: 'Permutas' },
+      { path: '/warranties', title: 'Garantías' },
+      { path: '/plan-canje', title: 'Plan Canje' },
+      { path: '/calculator', title: 'Calculadora' },
+      { path: '/finance', title: 'Finance' },
+      { path: '/audit', title: 'Auditoría' },
+      { path: '/admin/users', title: 'Usuarios' },
+    ]
+
+    const exactMatch = routeTitles.find((item) => item.path === path)
+    if (exactMatch) return exactMatch.title
+
+    const nestedMatch = routeTitles.find((item) => item.path !== '/' && path.startsWith(`${item.path}/`))
+    if (nestedMatch) return nestedMatch.title
+
+    return 'MyPhone'
+  }, [location.pathname])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setHasScrolled(window.scrollY > 8)
+    }
+
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#F6F8FB] text-[#0F172A]">
-      <header className="sticky top-0 z-40 border-b border-[#E6EBF2] bg-white/90 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-4 px-4">
+      <header
+        className={cn(
+          'sticky top-0 z-40 border-b border-[#E6EBF2] bg-white/95 backdrop-blur',
+          hasScrolled && 'shadow-[0_6px_20px_rgba(15,23,42,0.08)]',
+        )}
+      >
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-4 px-4 pt-[env(safe-area-inset-top)]">
           <div className="flex flex-1 items-center justify-start gap-3 md:hidden">
-            <img src={logo} alt="MyPhone" className="h-6 w-auto object-contain" />
+            <img src={logo} alt="MyPhone" className="h-6 w-auto object-contain opacity-95" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-[#0F172A]">{mobileSectionTitle}</p>
+              <p className="truncate text-[11px] text-[#5B677A]">MyPhone</p>
+            </div>
           </div>
 
           <div className="ml-auto flex items-center gap-3">
@@ -189,21 +236,21 @@ export function AppLayout() {
         </main>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E6EBF2] bg-white/90 backdrop-blur md:hidden">
-        <div className="flex items-center justify-between gap-1 px-3 py-2 text-[11px]">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#E6EBF2] bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-[640px] grid-cols-5 items-center gap-1 px-2 py-2 text-[10px]">
           {bottomNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1 font-medium text-[#5B677A] transition',
+                  'flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 font-medium text-[#5B677A] transition',
                   isActive && 'bg-[rgba(11,74,162,0.08)] text-[#0B4AA2]',
                 )
               }
             >
               {icons[item.icon]}
-              <span>{item.label}</span>
+              <span className="max-w-full truncate text-[10px] leading-none">{item.label}</span>
             </NavLink>
           ))}
         </div>
