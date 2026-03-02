@@ -2,7 +2,19 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { cancelSale, fetchSalesPage, fetchSellers, updateSale, type CancelSalePayload, type UpdateSalePayload } from '../services/sales'
+import {
+  cancelSale,
+  fetchSaleById,
+  fetchSalesPage,
+  fetchSellers,
+  registerSalePayment,
+  settleSale,
+  updateSale,
+  type CancelSalePayload,
+  type RegisterSalePaymentPayload,
+  type SettleSalePayload,
+  type UpdateSalePayload,
+} from '../services/sales'
 import { useAuth } from '../hooks/useAuth'
 import type { Sale } from '../types'
 import { Button } from '../components/ui/Button'
@@ -27,6 +39,13 @@ function formatDate(value?: string | null) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
   return date.toLocaleDateString('es-AR')
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString('es-AR')
 }
 
 function formatMoney(value?: number | null) {
@@ -98,6 +117,10 @@ export function SalesPage() {
   const [editIncludesCube, setEditIncludesCube] = useState(false)
   const [cancelRestockState, setCancelRestockState] = useState<CancelSalePayload['restock_state']>('used_premium')
   const [cancelReason, setCancelReason] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<RegisterSalePaymentPayload['method']>('cash')
+  const [paymentCurrency, setPaymentCurrency] = useState<RegisterSalePaymentPayload['currency']>('ARS')
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentNote, setPaymentNote] = useState('')
 
   const canOperateSales = profile?.role === 'owner'
 
@@ -120,6 +143,14 @@ export function SalesPage() {
         sort_dir: 'desc',
       }),
   })
+
+  const saleDetailQuery = useQuery({
+    queryKey: ['sale-detail', selectedSale?.id],
+    queryFn: () => fetchSaleById(selectedSale!.id),
+    enabled: Boolean(selectedSale?.id),
+  })
+
+  const activeSale = saleDetailQuery.data ?? selectedSale
 
   const updateMutation = useMutation({
     mutationFn: ({ saleId, payload }: { saleId: string; payload: UpdateSalePayload }) => updateSale(saleId, payload),
@@ -149,6 +180,34 @@ export function SalesPage() {
     onError: (error) => {
       const err = error as Error
       toast.error(err.message || 'No se pudo cancelar la venta')
+    },
+  })
+
+  const registerPaymentMutation = useMutation({
+    mutationFn: ({ saleId, payload }: { saleId: string; payload: RegisterSalePaymentPayload }) => registerSalePayment(saleId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
+      queryClient.invalidateQueries({ queryKey: ['sale-detail'] })
+      setPaymentAmount('')
+      setPaymentNote('')
+      toast.success('Pago registrado')
+    },
+    onError: (error) => {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo registrar el pago')
+    },
+  })
+
+  const settleMutation = useMutation({
+    mutationFn: ({ saleId, payload }: { saleId: string; payload: SettleSalePayload }) => settleSale(saleId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
+      queryClient.invalidateQueries({ queryKey: ['sale-detail'] })
+      toast.success('Venta cerrada')
+    },
+    onError: (error) => {
+      const err = error as Error
+      toast.error(err.message || 'No se pudo cerrar la venta')
     },
   })
 
@@ -219,6 +278,10 @@ export function SalesPage() {
     setEditIncludesCube(Boolean(sale.includes_cube_20w))
     setCancelRestockState('used_premium')
     setCancelReason('')
+    setPaymentMethod('cash')
+    setPaymentCurrency('ARS')
+    setPaymentAmount('')
+    setPaymentNote('')
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.set('sale_id', sale.id)
@@ -228,6 +291,8 @@ export function SalesPage() {
 
   const closeSaleModal = () => {
     setSelectedSale(null)
+    setPaymentAmount('')
+    setPaymentNote('')
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('sale_id')
@@ -236,19 +301,19 @@ export function SalesPage() {
   }
 
   const handleSaveSale = () => {
-    if (!selectedSale || !canOperateSales) return
+    if (!activeSale || !canOperateSales) return
     const payload: UpdateSalePayload = {
       seller_id: editSellerId || null,
       details: editDetails.trim() || null,
       notes: editDetails.trim() || null,
       includes_cube_20w: editIncludesCube,
     }
-    updateMutation.mutate({ saleId: selectedSale.id, payload })
+    updateMutation.mutate({ saleId: activeSale.id, payload })
   }
 
   const handleCancelSale = () => {
-    if (!selectedSale || !canOperateSales) return
-    if (String(selectedSale.status ?? '').toLowerCase() === 'cancelled') {
+    if (!activeSale || !canOperateSales) return
+    if (String(activeSale.status ?? '').toLowerCase() === 'cancelled') {
       toast.error('La venta ya está cancelada.')
       return
     }
@@ -265,9 +330,132 @@ export function SalesPage() {
     }
 
     cancelMutation.mutate({
-      saleId: selectedSale.id,
+      saleId: activeSale.id,
       payload,
     })
+  }
+
+  const handleRegisterPayment = () => {
+    if (!activeSale || !canOperateSales) return
+    if (String(activeSale.status ?? '').toLowerCase() === 'cancelled') {
+      toast.error('No podés registrar pagos en una venta cancelada.')
+      return
+    }
+
+    const amount = Number(paymentAmount.replace(',', '.'))
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Ingresá un monto válido mayor a 0.')
+      return
+    }
+
+    registerPaymentMutation.mutate({
+      saleId: activeSale.id,
+      payload: {
+        method: paymentMethod,
+        currency: paymentCurrency,
+        amount,
+        note: paymentNote.trim() || null,
+      },
+    })
+  }
+
+  const handleSettleSale = () => {
+    if (!activeSale || !canOperateSales) return
+    if (String(activeSale.status ?? '').toLowerCase() === 'cancelled') {
+      toast.error('La venta ya está cancelada.')
+      return
+    }
+
+    settleMutation.mutate({
+      saleId: activeSale.id,
+      payload: {
+        method: paymentMethod,
+        currency: paymentCurrency,
+        note: paymentNote.trim() || null,
+      },
+    })
+  }
+
+  const handlePrintReceipt = () => {
+    if (!activeSale) return
+
+    const customer = resolveCustomer(activeSale)
+    const phone = activeSale.customer_phone || activeSale.customer?.phone || '—'
+    const dni = activeSale.customer_dni || activeSale.customer?.dni || '—'
+    const items = activeSale.items && activeSale.items.length > 0
+      ? activeSale.items
+      : [{
+        model: activeSale.stock_model || 'Equipo',
+        imei: activeSale.stock_imei || null,
+        qty: 1,
+        sale_price_ars: activeSale.total_ars,
+      }]
+    const payments = activeSale.payments ?? []
+    const seller = activeSale.seller_name || activeSale.seller_full_name || '—'
+    const pending = Number(activeSale.balance_due_ars ?? 0)
+
+    const rowsHtml = items
+      .map((item) => {
+        const label = `${item.model || 'Equipo'}${item.imei ? ` · IMEI ${item.imei}` : ''}`
+        const subtotal = Number(item.sale_price_ars ?? 0) * Number(item.qty ?? 1)
+        return `<tr><td style="padding:6px 0;border-bottom:1px solid #e5e7eb">${label}</td><td style="padding:6px 0;border-bottom:1px solid #e5e7eb;text-align:right">$${subtotal.toLocaleString('es-AR')}</td></tr>`
+      })
+      .join('')
+
+    const paymentsHtml = payments.length > 0
+      ? `<h3 style="margin:14px 0 6px;font-size:12px;color:#475569;text-transform:uppercase;letter-spacing:.08em">Pagos</h3>
+         <ul style="padding-left:18px;margin:0">
+          ${payments
+            .map((payment) => `<li style="margin-bottom:4px">${formatPaymentMethod(payment.method)} ${payment.currency} $${Number(payment.amount ?? 0).toLocaleString('es-AR')}</li>`)
+            .join('')}
+         </ul>`
+      : ''
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Comprobante ${activeSale.id.slice(0, 8)}</title>
+        </head>
+        <body style="font-family:Arial,sans-serif;padding:20px;color:#0f172a">
+          <h2 style="margin:0 0 4px">MyPhone - Comprobante</h2>
+          <p style="margin:0 0 10px;color:#475569">Venta ${activeSale.id.slice(0, 8)} · ${formatDateTime(activeSale.sale_date ?? activeSale.created_at)}</p>
+          <p style="margin:0 0 2px"><strong>Cliente:</strong> ${customer}</p>
+          <p style="margin:0 0 2px"><strong>Tel:</strong> ${phone}</p>
+          <p style="margin:0 0 2px"><strong>DNI:</strong> ${dni}</p>
+          <p style="margin:0 0 12px"><strong>Vendedor:</strong> ${seller}</p>
+
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr><th style="text-align:left;padding:6px 0;border-bottom:1px solid #cbd5e1">Equipo</th><th style="text-align:right;padding:6px 0;border-bottom:1px solid #cbd5e1">Subtotal</th></tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+
+          ${paymentsHtml}
+
+          <div style="margin-top:16px;border-top:1px solid #cbd5e1;padding-top:8px">
+            <p style="margin:0 0 2px"><strong>Total:</strong> ${formatMoney(activeSale.total_ars)}</p>
+            <p style="margin:0 0 2px"><strong>Saldo pendiente:</strong> ${formatMoney(pending)}</p>
+            <p style="margin:0"><strong>Cubo 20W:</strong> ${activeSale.includes_cube_20w ? 'Sí' : 'No'}</p>
+          </div>
+        </body>
+      </html>
+    `
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=760,height=860')
+    if (!printWindow) {
+      toast.error('No se pudo abrir la ventana de impresión')
+      return
+    }
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => {
+      printWindow.print()
+    }, 200)
   }
 
   return (
@@ -420,24 +608,43 @@ export function SalesPage() {
 
       <Modal
         open={Boolean(selectedSale)}
-        title={selectedSale ? `Venta ${selectedSale.id.slice(0, 8)}` : 'Venta'}
-        subtitle={selectedSale ? 'Gestión operativa de la venta seleccionada.' : undefined}
+        title={activeSale ? `Venta ${activeSale.id.slice(0, 8)}` : 'Venta'}
+        subtitle={activeSale ? 'Gestión operativa de la venta seleccionada.' : undefined}
         onClose={closeSaleModal}
         actions={
           <>
             <Button variant="secondary" onClick={closeSaleModal}>
               Cerrar
             </Button>
-            {canOperateSales && selectedSale && String(selectedSale.status ?? '').toLowerCase() !== 'cancelled' ? (
+            {activeSale ? (
+              <Button variant="secondary" onClick={handlePrintReceipt}>
+                Imprimir comprobante
+              </Button>
+            ) : null}
+            {canOperateSales && activeSale && String(activeSale.status ?? '').toLowerCase() !== 'cancelled' ? (
               <>
                 <Button
                   variant="danger"
                   onClick={handleCancelSale}
-                  disabled={cancelMutation.isPending || updateMutation.isPending || cancelReason.trim().length === 0}
+                  disabled={
+                    cancelMutation.isPending ||
+                    updateMutation.isPending ||
+                    registerPaymentMutation.isPending ||
+                    settleMutation.isPending ||
+                    cancelReason.trim().length === 0
+                  }
                 >
                   {cancelMutation.isPending ? 'Cancelando...' : 'Cancelar venta'}
                 </Button>
-                <Button onClick={handleSaveSale} disabled={updateMutation.isPending || cancelMutation.isPending}>
+                <Button
+                  onClick={handleSaveSale}
+                  disabled={
+                    updateMutation.isPending ||
+                    cancelMutation.isPending ||
+                    registerPaymentMutation.isPending ||
+                    settleMutation.isPending
+                  }
+                >
                   {updateMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
                 </Button>
               </>
@@ -445,28 +652,44 @@ export function SalesPage() {
           </>
         }
       >
-        {selectedSale ? (
+        {selectedSale && !activeSale ? (
+          <div className="rounded-2xl border border-[#E6EBF2] bg-white px-4 py-6 text-sm text-[#5B677A]">
+            Cargando detalle de venta...
+          </div>
+        ) : null}
+
+        {activeSale ? (
           <div className="space-y-5">
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3 text-sm text-[#334155]">
                 <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Cliente</p>
-                <p className="mt-1 font-medium text-[#0F172A]">{resolveCustomer(selectedSale)}</p>
+                <p className="mt-1 font-medium text-[#0F172A]">{resolveCustomer(activeSale)}</p>
                 <p className="text-xs text-[#64748B]">
-                  Tel: {selectedSale.customer_phone || selectedSale.customer?.phone || '—'} · DNI:{' '}
-                  {selectedSale.customer_dni || selectedSale.customer?.dni || '—'}
+                  Tel: {activeSale.customer_phone || activeSale.customer?.phone || '—'} · DNI:{' '}
+                  {activeSale.customer_dni || activeSale.customer?.dni || '—'}
                 </p>
               </div>
               <div className="rounded-xl border border-[#E6EBF2] bg-[#F8FAFC] p-3 text-sm text-[#334155]">
                 <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Estado y totales</p>
-                <p className="mt-1 font-medium text-[#0F172A]">{formatSaleStatus(selectedSale.status)}</p>
-                <p className="text-xs text-[#64748B]">Fecha: {formatDate(selectedSale.sale_date ?? selectedSale.created_at)}</p>
-                <p className="text-xs text-[#64748B]">Total: {formatMoney(selectedSale.total_ars)}</p>
+                <p className="mt-1 font-medium text-[#0F172A]">{formatSaleStatus(activeSale.status)}</p>
+                <p className="text-xs text-[#64748B]">Fecha: {formatDate(activeSale.sale_date ?? activeSale.created_at)}</p>
+                <p className="text-xs text-[#64748B]">Total: {formatMoney(activeSale.total_ars)}</p>
+                <p className="text-xs text-[#64748B]">Saldo: {formatMoney(activeSale.balance_due_ars ?? 0)}</p>
               </div>
             </div>
 
             <div className="rounded-xl border border-[#E6EBF2] bg-white p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Equipo</p>
-              <p className="mt-1 text-sm font-medium text-[#0F172A]">{resolveItemSummary(selectedSale)}</p>
+              <p className="mt-1 text-sm font-medium text-[#0F172A]">{resolveItemSummary(activeSale)}</p>
+              {activeSale.items && activeSale.items.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-xs text-[#64748B]">
+                  {activeSale.items.map((item, index) => (
+                    <li key={`${activeSale.id}-item-${index}`}>
+                      {item.model || 'Equipo'} {item.imei ? `· IMEI ${item.imei}` : ''} · {formatMoney(item.sale_price_ars ?? 0)}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
@@ -475,7 +698,7 @@ export function SalesPage() {
                 <Select
                   value={editSellerId}
                   onChange={(event) => setEditSellerId(event.target.value)}
-                  disabled={!canOperateSales || String(selectedSale.status ?? '').toLowerCase() === 'cancelled'}
+                  disabled={!canOperateSales || String(activeSale.status ?? '').toLowerCase() === 'cancelled'}
                 >
                   <option value="">Sin asignar</option>
                   {(sellersQuery.data ?? []).map((seller) => (
@@ -491,7 +714,7 @@ export function SalesPage() {
                   <input
                     type="checkbox"
                     checked={editIncludesCube}
-                    disabled={!canOperateSales || String(selectedSale.status ?? '').toLowerCase() === 'cancelled'}
+                    disabled={!canOperateSales || String(activeSale.status ?? '').toLowerCase() === 'cancelled'}
                     onChange={(event) => setEditIncludesCube(event.target.checked)}
                   />
                   Incluye cubo de 20W
@@ -504,11 +727,77 @@ export function SalesPage() {
               <Input
                 value={editDetails}
                 onChange={(event) => setEditDetails(event.target.value)}
-                disabled={!canOperateSales || String(selectedSale.status ?? '').toLowerCase() === 'cancelled'}
+                disabled={!canOperateSales || String(activeSale.status ?? '').toLowerCase() === 'cancelled'}
               />
             </div>
 
-            {canOperateSales && String(selectedSale.status ?? '').toLowerCase() !== 'cancelled' ? (
+            {canOperateSales && String(activeSale.status ?? '').toLowerCase() !== 'cancelled' ? (
+              <div className="space-y-3 rounded-xl border border-[#E6EBF2] bg-white p-3">
+                <p className="text-sm font-semibold text-[#0F172A]">Cobros y cierre de venta</p>
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Método</label>
+                    <Select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as RegisterSalePaymentPayload['method'])}>
+                      <option value="cash">Efectivo</option>
+                      <option value="transfer">Transferencia</option>
+                      <option value="card">Tarjeta</option>
+                      <option value="mixed">Mixto</option>
+                      <option value="trade_in">Permuta</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Moneda</label>
+                    <Select value={paymentCurrency} onChange={(event) => setPaymentCurrency(event.target.value as RegisterSalePaymentPayload['currency'])}>
+                      <option value="ARS">ARS</option>
+                      <option value="USD">USD</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Monto</label>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      value={paymentAmount}
+                      onChange={(event) => setPaymentAmount(event.target.value)}
+                      placeholder="Ej: 100000"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Nota</label>
+                    <Input value={paymentNote} onChange={(event) => setPaymentNote(event.target.value)} placeholder="Opcional" />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={handleRegisterPayment}
+                    disabled={registerPaymentMutation.isPending || settleMutation.isPending}
+                  >
+                    {registerPaymentMutation.isPending ? 'Registrando...' : 'Registrar pago'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={handleSettleSale}
+                    disabled={settleMutation.isPending || registerPaymentMutation.isPending}
+                  >
+                    {settleMutation.isPending ? 'Cerrando...' : 'Cerrar saldo'}
+                  </Button>
+                </div>
+                {activeSale.payments && activeSale.payments.length > 0 ? (
+                  <div className="rounded-lg border border-[#E6EBF2] bg-[#F8FAFC] p-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#64748B]">Pagos registrados</p>
+                    <ul className="mt-1 space-y-1 text-xs text-[#334155]">
+                      {activeSale.payments.map((payment) => (
+                        <li key={payment.id ?? `${payment.method}-${payment.amount}`}>
+                          {formatPaymentMethod(payment.method)} · {payment.currency} {formatMoney(payment.amount)} {payment.note ? `· ${payment.note}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {canOperateSales && String(activeSale.status ?? '').toLowerCase() !== 'cancelled' ? (
               <div className="space-y-3 rounded-xl border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-3">
                 <p className="text-sm font-semibold text-[#991B1B]">Cancelar venta y reingresar equipo</p>
                 <p className="text-xs text-[#7F1D1D]">Elegí el estado de reingreso. Este cambio impacta en stock.</p>
