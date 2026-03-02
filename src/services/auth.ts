@@ -167,17 +167,13 @@ export function supportsPasskeyLogin() {
   return browserSupportsWebAuthn()
 }
 
-export async function loginWithPasskey(emailRaw: string): Promise<LoginResponse> {
+export async function loginWithPasskey(emailRaw?: string): Promise<LoginResponse> {
   ensurePasskeySupported()
-
-  const email = emailRaw.trim().toLowerCase()
-  if (!email) {
-    throw new Error('Ingresá tu email para usar Face ID')
-  }
+  const email = (emailRaw ?? '').trim().toLowerCase()
 
   const optionsResponse = await requestFirstAvailable<unknown>(['/api/auth/passkeys/login/options'], {
     method: 'POST',
-    body: { email },
+    body: email ? { email } : {},
     auth: false,
   })
 

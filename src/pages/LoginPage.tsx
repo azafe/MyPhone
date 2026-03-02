@@ -49,19 +49,13 @@ export function LoginPage() {
   }
 
   const handlePasskeyLogin = async () => {
-    const email = form.getValues('email').trim()
-    if (!email) {
-      toast.error('Ingresá tu email para usar Face ID')
-      return
-    }
-
     try {
       setPasskeyLoading(true)
-      const response = await loginWithPasskey(email)
+      const response = await loginWithPasskey()
       await signInWithToken({
         token: response.token,
         user: response.user,
-        fallbackEmail: email,
+        fallbackEmail: form.getValues('email').trim(),
       })
       toast.success('Ingreso con Face ID exitoso')
       navigate('/stock')
