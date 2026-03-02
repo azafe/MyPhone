@@ -272,3 +272,20 @@ export type FinanceSummary = {
   payment_mix: Array<{ method: string; total: number }>
   open_tradeins: number
 }
+
+export type AuditLog = {
+  id: string
+  actor_user_id?: string | null
+  action: string
+  entity_type: string
+  entity_id?: string | null
+  before_json?: Record<string, unknown> | null
+  after_json?: Record<string, unknown> | null
+  meta_json?: Record<string, unknown> | null
+  created_at: string
+  actor?: {
+    id: string
+    full_name?: string | null
+    role?: string | null
+  } | null
+}

@@ -18,6 +18,7 @@ const baseNavItems = [
 
 const adminNavItems = [
   { to: '/finance', label: 'Finance', icon: 'chart' },
+  { to: '/audit', label: 'Auditoría', icon: 'history' },
   { to: '/admin/users', label: 'Usuarios', icon: 'users' },
 ]
 
@@ -99,6 +100,13 @@ const icons: Record<string, ReactNode> = {
       <circle cx="9" cy="7" r="3" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a3 3 0 0 1 0 5.75" />
+    </svg>
+  ),
+  history: (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v4h4" />
+      <path d="M12 7v6l4 2" />
     </svg>
   ),
 }

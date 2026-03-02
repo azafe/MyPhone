@@ -52,6 +52,7 @@ const PlanCanjePage = lazyWithRetry(() => import('./pages/PlanCanjePage').then((
 const CalculatorPage = lazyWithRetry(() => import('./pages/CalculatorPage').then((m) => ({ default: m.CalculatorPage })))
 const FinancePage = lazyWithRetry(() => import('./pages/FinancePage').then((m) => ({ default: m.FinancePage })))
 const AdminUsersPage = lazyWithRetry(() => import('./pages/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })))
+const AuditPage = lazyWithRetry(() => import('./pages/AuditPage').then((m) => ({ default: m.AuditPage })))
 
 function withSuspense(node: ReactNode) {
   return (
@@ -108,6 +109,7 @@ const router = createBrowserRouter([
             children: [
               { path: '/finance', element: withSuspense(<FinancePage />) },
               { path: '/admin/users', element: withSuspense(<AdminUsersPage />) },
+              { path: '/audit', element: withSuspense(<AuditPage />) },
             ],
           },
         ],
