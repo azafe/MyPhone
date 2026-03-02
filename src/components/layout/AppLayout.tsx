@@ -25,7 +25,7 @@ const adminNavItems = [
 const baseBottomNavItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'grid' },
   { to: '/stock', label: 'Stock', icon: 'box' },
-  { to: '/sales/new', label: 'Nueva', icon: 'plus' },
+  { to: '/pos', label: 'POS', icon: 'pos' },
   { to: '/sales', label: 'Ventas', icon: 'sale' },
   { to: '/calculator', label: 'Calc', icon: 'card' },
 ]
@@ -120,7 +120,7 @@ export function AppLayout() {
   const isAdmin = role === 'admin' || role === 'owner'
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems
   const bottomNavItems = isAdmin
-    ? [...baseBottomNavItems.slice(0, 4), { to: '/finance', label: 'Finance', icon: 'chart' }]
+    ? [...baseBottomNavItems.slice(0, 4), { to: '/finance', label: 'Finanzas', icon: 'chart' }]
     : baseBottomNavItems
   const mobileSectionTitle = useMemo(() => {
     const path = location.pathname
