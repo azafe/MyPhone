@@ -241,6 +241,22 @@ export async function registerPasskeyForCurrentSession() {
   })
 }
 
+export async function requestPasswordReset(email: string): Promise<void> {
+  await requestFirstAvailable(['/api/auth/forgot-password'], {
+    method: 'POST',
+    body: { email },
+    auth: false,
+  })
+}
+
+export async function confirmPasswordReset(accessToken: string, password: string): Promise<void> {
+  await requestFirstAvailable(['/api/auth/reset-password'], {
+    method: 'POST',
+    body: { access_token: accessToken, password },
+    auth: false,
+  })
+}
+
 export async function fetchAuthMe(): Promise<AuthUser> {
   const response = await requestFirstAvailable<unknown>(['/api/auth/me'])
   const body = asObject(response)

@@ -41,6 +41,8 @@ function lazyWithRetry<T extends ComponentType<object>>(loader: () => Promise<{ 
 }
 
 const LoginPage = lazyWithRetry(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })))
+const ForgotPasswordPage = lazyWithRetry(() => import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })))
+const ResetPasswordPage = lazyWithRetry(() => import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })))
 const DashboardPage = lazyWithRetry(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
 const POSPage = lazyWithRetry(() => import('./pages/POSPage').then((m) => ({ default: m.POSPage })))
 const StockPage = lazyWithRetry(() => import('./pages/StockPage').then((m) => ({ default: m.StockPage })))
@@ -86,6 +88,8 @@ function RouterErrorBoundary() {
 
 const router = createBrowserRouter([
   { path: '/login', element: withSuspense(<LoginPage />), errorElement: <RouterErrorBoundary /> },
+  { path: '/forgot-password', element: withSuspense(<ForgotPasswordPage />), errorElement: <RouterErrorBoundary /> },
+  { path: '/reset-password', element: withSuspense(<ResetPasswordPage />), errorElement: <RouterErrorBoundary /> },
   {
     element: <RequireAuth />,
     errorElement: <RouterErrorBoundary />,

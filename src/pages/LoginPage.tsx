@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -105,7 +105,17 @@ export function LoginPage() {
               <Input type="email" placeholder="mail@myphone.com" {...form.register('email')} />
             </Field>
             <Field label="Password">
-              <Input type="password" placeholder="••••••••" {...form.register('password')} />
+              <div className="relative">
+                <Input type="password" placeholder="••••••••" {...form.register('password')} />
+              </div>
+              <div className="mt-1 text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-[#5B677A] hover:text-[#0F172A]"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
             </Field>
 
             {(form.formState.errors.email || form.formState.errors.password) && (
